@@ -1,137 +1,341 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Clock, Home, Users } from "lucide-react"
+import { Calendar as CalendarIcon, Clock, Loader2 } from "lucide-react"
+import { supabase } from "@/lib/supabaseClient"
+import { format, parseISO, getDay, parse } from 'date-fns' // Import date-fns functions
+import { toast } from "@/components/ui/use-toast"
+import { Textarea } from "@/components/ui/textarea"; // Import Textarea
+import FullCalendar from '@fullcalendar/react'
+import dayGridPlugin from '@fullcalendar/daygrid' // For month view
+import timeGridPlugin from '@fullcalendar/timegrid' // For week/day views
+import interactionPlugin from '@fullcalendar/interaction' // For clicking/selecting dates/events
+import type { EventInput, EventClickArg, DateSelectArg } from '@fullcalendar/core'
+import { formatISO, addMinutes } from 'date-fns' // For date manipulation
+
+// Interface matching Supabase table structure
+interface Appointment {
+  id: string; 
+  created_at: string; 
+  title: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM:SS
+  duration_minutes: number;
+  purpose: string | null;
+  attendees: string[] | null;
+  notes: string | null;
+}
+
+// Form state interface
+interface AppointmentFormState {
+  id?: string; // Add ID for editing existing appointments
+  title: string;
+  date: string;
+  time: string;
+  duration_minutes: string; // Store as string from select
+  purpose: string;
+  attendees: string; // Comma-separated string
+  notes: string;
+}
+
+const DEFAULT_FORM_STATE: AppointmentFormState = {
+  title: "",
+  date: "",
+  time: "",
+  duration_minutes: "60",
+  purpose: "",
+  attendees: "",
+  notes: "",
+};
 
 export default function CalendarPage() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [formState, setFormState] = useState<AppointmentFormState>(DEFAULT_FORM_STATE);
+  const [isEditing, setIsEditing] = useState(false);
 
-  // Placeholder for API calls
-  // Fetch appointments from /api/calendar
-  // Sync with Google Calendar via /api/integrations/google-calendar
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]; // Sunday is 0
+  const hours = Array.from({ length: 12 }, (_, i) => i + 8); // 8 AM to 7 PM
 
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-  const hours = Array.from({ length: 12 }, (_, i) => i + 8) // 8 AM to 7 PM
+  // Fetch appointments from Supabase
+  const fetchAppointments = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .order('date', { ascending: true })
+        .order('time', { ascending: true });
 
-  const appointments = [
-    {
-      id: 1,
-      title: "Showing: 123 Main St",
-      day: "Monday",
-      time: "10:00 AM",
-      duration: 60,
-      type: "Showing",
-      attendees: ["John Doe", "Sarah Johnson"],
-    },
-    {
-      id: 2,
-      title: "Client Meeting: Jane Smith",
-      day: "Tuesday",
-      time: "2:00 PM",
-      duration: 90,
-      type: "Meeting",
-      attendees: ["Jane Smith", "Mike Wilson"],
-    },
-    {
-      id: 3,
-      title: "Showing: 456 Oak Ave",
-      day: "Wednesday",
-      time: "11:30 AM",
-      duration: 60,
-      type: "Showing",
-      attendees: ["Robert Brown", "David Miller"],
-    },
-    {
-      id: 4,
-      title: "Open House: 789 Pine Rd",
-      day: "Saturday",
-      time: "1:00 PM",
-      duration: 180,
-      type: "Open House",
-      attendees: ["Sarah Johnson"],
-    },
-    {
-      id: 5,
-      title: "Closing: 321 Elm St",
-      day: "Friday",
-      time: "9:00 AM",
-      duration: 120,
-      type: "Closing",
-      attendees: ["Emily Davis", "Mike Wilson", "David Miller"],
-    },
-  ]
+      if (error) {
+        throw error;
+      }
+      setAppointments(data || []);
+    } catch (err: any) {
+      console.error('Error fetching appointments:', err);
+      setError('Failed to load appointments.');
+      toast({
+        title: "Error",
+        description: "Could not fetch appointments from database.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const getAppointmentPosition = (time: string) => {
-    const [hourStr, minuteStr] = time.split(":")
-    const isPM = time.includes("PM") && hourStr !== "12"
-    const hour = Number.parseInt(hourStr) + (isPM ? 12 : 0)
-    const minute = Number.parseInt(minuteStr)
+  useEffect(() => {
+    fetchAppointments();
+  }, []);
 
-    // Calculate position relative to 8 AM (our first hour)
-    const hourPosition = hour - 8
-    const minutePosition = minute / 60
+  const handleInputChange = (
+    field: keyof AppointmentFormState,
+    value: string
+  ) => {
+    setFormState((prev) => ({ ...prev, [field]: value }));
+  };
 
-    return hourPosition + minutePosition
+  const resetFormAndClose = () => {
+    setFormState(DEFAULT_FORM_STATE);
+    setIsEditing(false);
+    setOpen(false);
+  };
+
+  // --- Calendar Event Formatting --- 
+  const mapAppointmentsToEvents = (appointments: Appointment[]): EventInput[] => {
+    return appointments.map(apt => {
+      const startDateTime = parseISO(`${apt.date}T${apt.time}`);
+      const endDateTime = addMinutes(startDateTime, apt.duration_minutes);
+      
+      let backgroundColor = '#e5e7eb'; // Default gray
+      let borderColor = '#d1d5db';
+      switch (apt.purpose) {
+        case "Showing": backgroundColor = '#dbeafe'; borderColor = '#93c5fd'; break; // Blue
+        case "Meeting": backgroundColor = '#ede9fe'; borderColor = '#c4b5fd'; break; // Purple
+        case "Open House": backgroundColor = '#dcfce7'; borderColor = '#86efac'; break; // Green
+        case "Closing": backgroundColor = '#fee2e2'; borderColor = '#fca5a5'; break; // Red
+      }
+
+      return {
+        id: apt.id,
+        title: apt.title,
+        start: formatISO(startDateTime),
+        end: formatISO(endDateTime),
+        extendedProps: { 
+            purpose: apt.purpose,
+            attendees: apt.attendees,
+            notes: apt.notes
+         }, // Store original data
+        backgroundColor: backgroundColor,
+        borderColor: borderColor,
+        textColor: '#1f2937' // Dark gray text for better contrast
+      };
+    });
+  };
+
+  // --- FullCalendar Event Handlers --- 
+  const handleDateSelect = (selectInfo: DateSelectArg) => {
+    // Pre-fill form based on selected date/time range
+    const startDate = format(selectInfo.start, 'yyyy-MM-dd');
+    const startTime = format(selectInfo.start, 'HH:mm');
+    setFormState({
+        ...DEFAULT_FORM_STATE,
+        date: startDate,
+        time: startTime, // Pre-fill start time
+    });
+    setIsEditing(false);
+    setOpen(true);
+    // selectInfo.view.calendar.unselect(); // Deselect the date range visually
+  };
+
+  const handleEventClick = (clickInfo: EventClickArg) => {
+    // Populate form with existing event data for viewing/editing
+    const clickedEvent = appointments.find(apt => apt.id === clickInfo.event.id);
+    if (clickedEvent) {
+      setFormState({
+        id: clickedEvent.id,
+        title: clickedEvent.title,
+        date: clickedEvent.date,
+        time: clickedEvent.time.substring(0, 5), // Extract HH:MM
+        duration_minutes: clickedEvent.duration_minutes.toString(),
+        purpose: clickedEvent.purpose || "",
+        attendees: clickedEvent.attendees?.join(', ') || "",
+        notes: clickedEvent.notes || "",
+      });
+      setIsEditing(true);
+      setOpen(true);
+    }
+  };
+
+  // --- CRUD Operations --- 
+  const handleSaveAppointment = async () => {
+    if (!formState.title || !formState.date || !formState.time || !formState.duration_minutes) {
+      toast({ title: "Missing Information", description: "Title, Date, Time, and Duration are required.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const attendeesArray = formState.attendees.split(',').map(name => name.trim()).filter(name => name);
+      const appointmentData = {
+        title: formState.title,
+        date: formState.date,
+        time: formState.time,
+        duration_minutes: parseInt(formState.duration_minutes, 10),
+        purpose: formState.purpose || null,
+        attendees: attendeesArray.length > 0 ? attendeesArray : null,
+        notes: formState.notes || null,
+      };
+
+      let error: any;
+      if (isEditing && formState.id) {
+        // Update existing appointment
+        const { error: updateError } = await supabase
+          .from('appointments')
+          .update(appointmentData)
+          .eq('id', formState.id);
+        error = updateError;
+      } else {
+        // Insert new appointment
+        const { error: insertError } = await supabase
+          .from('appointments')
+          .insert([appointmentData]);
+        error = insertError;
+      }
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: `Appointment ${isEditing ? 'updated' : 'scheduled'} successfully.` });
+      resetFormAndClose();
+      fetchAppointments(); // Refetch appointments
+
+    } catch (err: any) {
+      console.error("Error saving appointment:", err);
+      toast({ title: "Error", description: `Failed to save appointment: ${err.message || 'Unknown error'}`, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteAppointment = async () => {
+     if (!isEditing || !formState.id) return;
+
+     try {
+        const { error } = await supabase
+            .from('appointments')
+            .delete()
+            .eq('id', formState.id);
+
+        if (error) throw error;
+
+        toast({ title: "Deleted", description: "Appointment removed successfully." });
+        resetFormAndClose();
+        fetchAppointments();
+     } catch (err: any) {
+         console.error("Error deleting appointment:", err);
+         toast({ title: "Error", description: `Failed to delete appointment: ${err.message || 'Unknown error'}`, variant: "destructive" });
+     }
   }
 
-  const getAppointmentHeight = (duration: number) => {
-    // Convert duration in minutes to height units (1 hour = 1 unit)
-    return duration / 60
-  }
+  // --- Display Logic Helpers (Adapted for Supabase data) ---
 
-  const getAppointmentColor = (type: string) => {
+  // Get day name from date string (e.g., "2024-08-15")
+  const getDayNameFromDate = (dateStr: string): string => {
+    try {
+       // getDay returns 0 for Sunday, 1 for Monday, etc.
+      const dayIndex = getDay(parseISO(dateStr)); 
+      return days[dayIndex];
+    } catch (e) {
+      console.error("Error parsing date for day name:", dateStr, e);
+      return "Invalid Date";
+    }
+  };
+  
+  // Format time from HH:MM:SS to HH:MM AM/PM
+  const formatDisplayTime = (timeStr: string): string => {
+    try {
+      // Parse HH:MM:SS and format to h:mm aa
+      const parsedTime = parse(timeStr, 'HH:mm:ss', new Date());
+      return format(parsedTime, 'h:mm aa');
+    } catch(e) {
+      console.error("Error formatting time:", timeStr, e);
+      return "Invalid Time";
+    }
+  };
+
+  // Calculate position based on time (HH:MM:SS)
+  const getAppointmentPosition = (time: string): number => {
+    try {
+      const [hourStr, minuteStr] = time.split(":");
+      const hour = Number.parseInt(hourStr);
+      const minute = Number.parseInt(minuteStr);
+      const hourPosition = hour - 8; // Relative to 8 AM start
+      const minutePosition = minute / 60;
+      return Math.max(0, hourPosition + minutePosition); // Ensure non-negative
+    } catch (e) {
+        console.error("Error calculating position:", time, e);
+        return 0;
+    }
+  };
+
+  const getAppointmentHeight = (duration: number): number => {
+    return (duration / 60) || 1; // Default to 1 hour height if duration is invalid
+  };
+
+  const getAppointmentColor = (type: string | null): string => {
     switch (type) {
       case "Showing":
-        return "bg-blue-100 border-blue-300 text-blue-800"
+        return "bg-blue-100 border-blue-300 text-blue-800";
       case "Meeting":
-        return "bg-purple-100 border-purple-300 text-purple-800"
+        return "bg-purple-100 border-purple-300 text-purple-800";
       case "Open House":
-        return "bg-green-100 border-green-300 text-green-800"
+        return "bg-green-100 border-green-300 text-green-800";
       case "Closing":
-        return "bg-red-100 border-red-300 text-red-800"
+        return "bg-red-100 border-red-300 text-red-800";
       default:
-        return "bg-gray-100 border-gray-300 text-gray-800"
+        return "bg-gray-100 border-gray-300 text-gray-800";
     }
-  }
+  };
+  // --- End Display Logic Helpers ---
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
         <h1 className="text-2xl font-bold">Appointment Scheduler</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) resetFormAndClose(); else setOpen(true); }}>
           <DialogTrigger asChild>
-            <Button>
-              <Calendar className="mr-2 h-4 w-4" />
+            <Button onClick={() => { setIsEditing(false); setFormState(DEFAULT_FORM_STATE); setOpen(true); }}>
+              <CalendarIcon className="mr-2 h-4 w-4" />
               Schedule Appointment
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Schedule Appointment</DialogTitle>
+              <DialogTitle>{isEditing ? 'Edit Appointment' : 'Schedule Appointment'}</DialogTitle>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <label htmlFor="title">Title</label>
-                <Input id="title" placeholder="Appointment title" />
+                <label htmlFor="title">Title*</label>
+                <Input id="title" placeholder="Appointment title" value={formState.title} onChange={e => handleInputChange('title', e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <label htmlFor="date">Date</label>
-                  <Input id="date" type="date" />
+                  <label htmlFor="date">Date*</label>
+                  <Input id="date" type="date" value={formState.date} onChange={e => handleInputChange('date', e.target.value)} />
                 </div>
                 <div className="grid gap-2">
-                  <label htmlFor="time">Time</label>
-                  <Input id="time" type="time" />
+                  <label htmlFor="time">Time*</label>
+                  <Input id="time" type="time" value={formState.time} onChange={e => handleInputChange('time', e.target.value)} />
                 </div>
               </div>
               <div className="grid gap-2">
-                <label htmlFor="duration">Duration</label>
-                <Select>
+                <label htmlFor="duration">Duration*</label>
+                <Select value={formState.duration_minutes} onValueChange={value => handleInputChange('duration_minutes', value)}>
                   <SelectTrigger id="duration">
                     <SelectValue placeholder="Select duration" />
                   </SelectTrigger>
@@ -146,106 +350,84 @@ export default function CalendarPage() {
               </div>
               <div className="grid gap-2">
                 <label htmlFor="purpose">Purpose</label>
-                <Select>
+                <Select value={formState.purpose || ''} onValueChange={value => handleInputChange('purpose', value)}>
                   <SelectTrigger id="purpose">
                     <SelectValue placeholder="Select purpose" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="showing">Showing</SelectItem>
-                    <SelectItem value="meeting">Meeting</SelectItem>
-                    <SelectItem value="open-house">Open House</SelectItem>
-                    <SelectItem value="closing">Closing</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
+                    <SelectItem value="Showing">Showing</SelectItem>
+                    <SelectItem value="Meeting">Meeting</SelectItem>
+                    <SelectItem value="Open House">Open House</SelectItem>
+                    <SelectItem value="Closing">Closing</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid gap-2">
                 <label htmlFor="attendees">Attendees</label>
-                <Input id="attendees" placeholder="Enter names separated by commas" />
+                <Input id="attendees" placeholder="Enter names separated by commas" value={formState.attendees} onChange={e => handleInputChange('attendees', e.target.value)} />
               </div>
               <div className="grid gap-2">
                 <label htmlFor="notes">Notes</label>
-                <textarea
-                  id="notes"
-                  placeholder="Additional information"
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                />
+                <Textarea id="notes" placeholder="Additional information" value={formState.notes} onChange={e => handleInputChange('notes', e.target.value)} />
               </div>
             </div>
-            <div className="flex justify-end">
-              <Button onClick={() => setOpen(false)}>Save Appointment</Button>
+            <div className="flex justify-between">
+               {isEditing && (
+                <Button variant="destructive" onClick={handleDeleteAppointment} disabled={loading}>
+                  Delete
+                </Button>
+              )}
+              {!isEditing && <div></div>} {/* Placeholder to keep Save button to the right */} 
+              <Button onClick={handleSaveAppointment} disabled={loading}>
+                {isEditing ? 'Update Appointment' : 'Save Appointment'}
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Calendar View */}
+      {/* FullCalendar Component */} 
       <Card>
-        <CardHeader>
-          <CardTitle>Weekly Schedule</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-8 border rounded-md overflow-hidden">
-            {/* Time column */}
-            <div className="border-r">
-              <div className="h-12 border-b flex items-center justify-center font-medium bg-gray-50"></div>
-              {hours.map((hour) => (
-                <div key={hour} className="h-16 border-b flex items-center justify-center text-sm text-gray-500">
-                  {hour > 12 ? hour - 12 : hour} {hour >= 12 ? "PM" : "AM"}
-                </div>
-              ))}
+        <CardContent className="p-4">
+          {loading && (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
+              <span className="ml-2">Loading appointments...</span>
             </div>
-
-            {/* Days columns */}
-            {days.map((day) => (
-              <div key={day} className="border-r last:border-r-0">
-                <div className="h-12 border-b flex items-center justify-center font-medium bg-gray-50">{day}</div>
-                <div className="h-[768px] relative">
-                  {/* Hour markers */}
-                  {hours.map((hour) => (
-                    <div key={hour} className="h-16 border-b"></div>
-                  ))}
-
-                  {/* Appointments */}
-                  {appointments
-                    .filter((apt) => apt.day === day)
-                    .map((apt) => {
-                      const top = getAppointmentPosition(apt.time) * 64 // 64px per hour
-                      const height = getAppointmentHeight(apt.duration) * 64
-                      const colorClass = getAppointmentColor(apt.type)
-
-                      return (
-                        <div
-                          key={apt.id}
-                          className={`absolute left-1 right-1 rounded-md border p-2 overflow-hidden ${colorClass}`}
-                          style={{ top: `${top}px`, height: `${height}px` }}
-                        >
-                          <div className="text-xs font-medium truncate">{apt.title}</div>
-                          <div className="flex items-center text-xs mt-1">
-                            <Clock className="h-3 w-3 mr-1" />
-                            {apt.time}
-                          </div>
-                          {apt.type === "Showing" && (
-                            <div className="flex items-center text-xs mt-1">
-                              <Home className="h-3 w-3 mr-1" />
-                              {apt.title.split(": ")[1]}
-                            </div>
-                          )}
-                          {apt.attendees.length > 0 && (
-                            <div className="flex items-center text-xs mt-1">
-                              <Users className="h-3 w-3 mr-1" />
-                              {apt.attendees.length} attendee{apt.attendees.length !== 1 ? "s" : ""}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
+          {error && (
+            <div className="text-center text-red-600 p-4">
+              {error}
+            </div>
+          )}
+          {!loading && !error && (
+            <FullCalendar
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="timeGridWeek" // Default view
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay' // View options
+              }}
+              events={mapAppointmentsToEvents(appointments)} // Map fetched data
+              editable={true} // Allows dragging/resizing (requires backend update logic)
+              selectable={true} // Allows selecting date ranges
+              selectMirror={true}
+              dayMaxEvents={true} // Show "+X more" link when too many events
+              weekends={true}
+              select={handleDateSelect} // Handler for selecting a date/time range
+              eventClick={handleEventClick} // Handler for clicking an event
+              // eventDrop={handleEventDrop} // TODO: Handler for drag-and-drop update
+              // eventResize={handleEventResize} // TODO: Handler for resize update
+              height="auto" // Adjust height automatically
+              contentHeight="auto"
+              slotMinTime="08:00:00" // Start day at 8 AM
+              slotMaxTime="20:00:00" // End day at 8 PM
+            />
+          )}
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
