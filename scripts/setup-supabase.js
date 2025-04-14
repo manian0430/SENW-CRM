@@ -19,10 +19,13 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey)
 
 async function main() {
-  console.log('Setting up Supabase for document management...')
+  console.log('Setting up Supabase for the CRM system...')
   
   try {
-    // Step 1: Create "documents" storage bucket if it doesn't exist
+    // Step 1: Set up document management
+    console.log('\n== DOCUMENT MANAGEMENT SETUP ==')
+    
+    // Create "documents" storage bucket if it doesn't exist
     const { data: buckets } = await supabase.storage.listBuckets()
     const documentsBucket = buckets.find(bucket => bucket.name === 'documents')
     
@@ -39,7 +42,7 @@ async function main() {
       console.log('✅ Documents bucket already exists')
     }
     
-    // Step 2: Check if documents table exists
+    // Check if documents table exists
     console.log('Checking if documents table exists...')
     const { error: tableError } = await supabase.from('documents').select('*').limit(1)
     
@@ -69,28 +72,64 @@ CREATE TABLE IF NOT EXISTS documents (
       console.log('✅ Documents table already exists')
     }
     
-    // Step 3: Configure storage policies
-    console.log('\nSetting up storage policies...')
+    // Step 2: Set up team management
+    console.log('\n== TEAM MANAGEMENT SETUP ==')
     
-    try {
-      const { error: uploadPolicyError } = await supabase.storage.from('documents').setPublicAccessControl({
-        upsert: 'authenticated',
-        read: 'authenticated',
-        delete: 'authenticated'
+    // Create "avatars" storage bucket if it doesn't exist
+    const avatarsBucket = buckets.find(bucket => bucket.name === 'avatars')
+    
+    if (!avatarsBucket) {
+      console.log('Creating avatars storage bucket...')
+      const { error } = await supabase.storage.createBucket('avatars', {
+        public: true, // Avatar images are typically public
+        fileSizeLimit: 5242880, // 5MB limit per file
       })
       
-      if (uploadPolicyError) throw uploadPolicyError
-      console.log('✅ Storage policies configured')
-    } catch (policyError) {
-      console.log('⚠️ Could not configure storage policies automatically')
-      console.log('\nPlease set up storage policies using the Supabase dashboard:')
-      console.log('1. Go to your Supabase project dashboard')
-      console.log('2. Navigate to "Storage" > "Policies"')
-      console.log('3. Set up policies for the "documents" bucket to allow authenticated users to:')
-      console.log('   - Insert/upload files')
-      console.log('   - Select/download files')
-      console.log('   - Delete files')
+      if (error) throw error
+      console.log('✅ Avatars bucket created')
+    } else {
+      console.log('✅ Avatars bucket already exists')
     }
+    
+    // Check if team_members table exists
+    console.log('Checking if team_members table exists...')
+    const { error: teamTableError } = await supabase.from('team_members').select('*').limit(1)
+    
+    if (teamTableError && teamTableError.message.includes('does not exist')) {
+      console.log('⚠️ Team members table does not exist')
+      console.log('\nPlease create the team_members table using the Supabase dashboard:')
+      console.log('1. Go to your Supabase project dashboard')
+      console.log('2. Navigate to "SQL Editor"')
+      console.log('3. Create a new query and paste the following SQL:')
+      console.log(`
+CREATE TABLE IF NOT EXISTS team_members (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name TEXT NOT NULL,
+  role TEXT NOT NULL,
+  email TEXT NOT NULL UNIQUE,
+  phone TEXT,
+  status TEXT NOT NULL DEFAULT 'Active',
+  avatar_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+      `)
+      console.log('4. Run the query')
+    } else if (teamTableError) {
+      console.error('Error checking team_members table:', teamTableError)
+    } else {
+      console.log('✅ Team members table already exists')
+    }
+    
+    // Step 3: Configure storage policies
+    console.log('\n== STORAGE POLICIES ==')
+    console.log('Please set up storage policies using the Supabase dashboard:')
+    console.log('1. Go to your Supabase project dashboard')
+    console.log('2. Navigate to "Storage" > "Policies"')
+    console.log('3. For the "documents" bucket:')
+    console.log('   - Allow authenticated users to upload, download, and delete files')
+    console.log('4. For the "avatars" bucket:')
+    console.log('   - Allow authenticated users to upload and delete files')
+    console.log('   - Allow public access to download/view files')
     
     console.log('\n✅ Setup process completed!')
     
