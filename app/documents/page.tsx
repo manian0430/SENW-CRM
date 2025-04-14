@@ -1,93 +1,112 @@
 "use client"
 
-import { useState } from "react"
-import { FileUp, FileText, Download, Trash2, MoreHorizontal } from "lucide-react"
+import { useState, useRef, FormEvent } from "react"
+import { FileUp, FileText, Download, Trash2, MoreHorizontal, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DialogContent, DialogHeader, DialogTitle, Dialog } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTable } from "@/components/ui/data-table"
 import { PageHeader } from "@/components/ui/page-header"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
-
-// Types
-interface Document {
-  id: string
-  name: string
-  type: string
-  property: string
-  uploadedBy: string
-  uploadDate: string
-  size: string
-}
+import { useDocuments } from "@/hooks/useDocuments"
+import { toast } from "sonner"
+import { type Document } from "@/app/services/documents"
 
 export default function DocumentsPage() {
+  const { documents, isLoading, uploadDocument, deleteDocument, getDocumentUrl } = useDocuments()
+  const [documentType, setDocumentType] = useState("all")
+  const [propertyFilter, setPropertyFilter] = useState("all")
   const [open, setOpen] = useState(false)
-  const [documentType, setDocumentType] = useState("")
-  const [propertyFilter, setPropertyFilter] = useState("")
+  const [isUploading, setIsUploading] = useState(false)
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    name: "",
+    type: "",
+    property: "all"
+  })
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Placeholder for API calls
-  // Fetch documents from /api/documents
-
-  const documents = [
-    {
-      id: "DOC-1001",
-      name: "Purchase Agreement - 123 Main St.pdf",
-      type: "Contract",
-      property: "123 Main St, Seattle, WA",
-      uploadedBy: "Sarah Johnson",
-      uploadDate: "2023-07-15",
-      size: "2.4 MB",
-    },
-    {
-      id: "DOC-1002",
-      name: "Inspection Report - 456 Oak Ave.pdf",
-      type: "Inspection",
-      property: "456 Oak Ave, Bellevue, WA",
-      uploadedBy: "Mike Wilson",
-      uploadDate: "2023-07-12",
-      size: "5.1 MB",
-    },
-    {
-      id: "DOC-1003",
-      name: "Disclosure Form - 789 Pine Rd.pdf",
-      type: "Disclosure",
-      property: "789 Pine Rd, Redmond, WA",
-      uploadedBy: "David Miller",
-      uploadDate: "2023-07-10",
-      size: "1.2 MB",
-    },
-    {
-      id: "DOC-1004",
-      name: "Listing Agreement - 321 Elm St.pdf",
-      type: "Listing",
-      property: "321 Elm St, Kirkland, WA",
-      uploadedBy: "Sarah Johnson",
-      uploadDate: "2023-07-05",
-      size: "1.8 MB",
-    },
-    {
-      id: "DOC-1005",
-      name: "Mortgage Pre-Approval - John Doe.pdf",
-      type: "Financial",
-      property: "N/A",
-      uploadedBy: "Mike Wilson",
-      uploadDate: "2023-07-01",
-      size: "0.9 MB",
-    },
-  ]
-
+  // Properties from API in a real app
   const properties = [
-    "123 Main St, Seattle, WA",
-    "456 Oak Ave, Bellevue, WA",
-    "789 Pine Rd, Redmond, WA",
-    "321 Elm St, Kirkland, WA",
+    { id: "prop-1", name: "123 Main St, Seattle, WA" },
+    { id: "prop-2", name: "456 Oak Ave, Bellevue, WA" },
+    { id: "prop-3", name: "789 Pine Rd, Redmond, WA" },
+    { id: "prop-4", name: "321 Elm St, Kirkland, WA" },
   ]
 
   const documentTypes = ["Contract", "Inspection", "Disclosure", "Listing", "Financial", "Other"]
+
+  const handleFormChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    
+    if (!fileInputRef.current?.files?.length) {
+      toast.error("Please select a file to upload")
+      return
+    }
+    
+    if (!formData.name || !formData.type) {
+      toast.error("Please fill all required fields")
+      return
+    }
+    
+    const file = fileInputRef.current.files[0]
+    setIsUploading(true)
+    
+    try {
+      const selectedProperty = formData.property !== "all" ? 
+        properties.find(p => p.id === formData.property) : null
+      
+      await uploadDocument(
+        file,
+        formData.name,
+        formData.type,
+        selectedProperty?.id || null,
+        selectedProperty?.name || null
+      )
+      
+      // Reset form
+      setFormData({ name: "", type: "", property: "all" })
+      if (fileInputRef.current) fileInputRef.current.value = ""
+      setOpen(false)
+    } catch (error) {
+      console.error("Error uploading document:", error)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleDownload = async (filePath: string, fileName: string) => {
+    try {
+      const url = await getDocumentUrl(filePath)
+      
+      // Create an anchor element and trigger download
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (error) {
+      console.error("Error downloading document:", error)
+    }
+  }
+
+  const handleDelete = async (id: string, filePath: string) => {
+    try {
+      await deleteDocument(id, filePath)
+    } catch (error) {
+      console.error("Error deleting document:", error)
+    }
+  }
 
   // Define columns for the data table
   const columns: ColumnDef<Document>[] = [
@@ -111,18 +130,23 @@ export default function DocumentsPage() {
       ),
     },
     {
-      accessorKey: "property",
+      accessorKey: "property_name",
       header: "Property",
+      cell: ({ row }) => {
+        const property = row.getValue("property_name") as string | null
+        return <span>{property || "N/A"}</span>
+      }
     },
     {
-      accessorKey: "uploadedBy",
+      accessorKey: "uploaded_by",
       header: "Uploaded By",
+      cell: () => <span>Demo User</span>, // In a real app, this would show the actual user name
     },
     {
-      accessorKey: "uploadDate",
+      accessorKey: "created_at",
       header: "Upload Date",
       cell: ({ row }) => {
-        const date = new Date(row.getValue("uploadDate"))
+        const date = new Date(row.getValue("created_at"))
         return <span>{date.toLocaleDateString()}</span>
       },
     },
@@ -142,11 +166,13 @@ export default function DocumentsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => 
+                handleDownload(row.original.file_path, row.original.name)}>
                 <Download className="mr-2 h-4 w-4" />
                 Download
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => 
+                handleDelete(row.original.id, row.original.file_path)}>
                 <Trash2 className="mr-2 h-4 w-4" />
                 Delete
               </DropdownMenuItem>
@@ -180,8 +206,8 @@ export default function DocumentsPage() {
         <SelectContent>
           <SelectItem value="all">All Properties</SelectItem>
           {properties.map((property) => (
-            <SelectItem key={property} value={property}>
-              {property}
+            <SelectItem key={property.id} value={property.id}>
+              {property.name}
             </SelectItem>
           ))}
         </SelectContent>
@@ -195,14 +221,24 @@ export default function DocumentsPage() {
       <DialogHeader>
         <DialogTitle>Upload Document</DialogTitle>
       </DialogHeader>
-      <div className="grid gap-4 py-4">
+      <form onSubmit={handleSubmit} className="grid gap-4 py-4">
         <div className="grid gap-2">
-          <label htmlFor="document-name">Document Name</label>
-          <Input id="document-name" placeholder="Enter document name" />
+          <label htmlFor="document-name">Document Name*</label>
+          <Input 
+            id="document-name" 
+            placeholder="Enter document name" 
+            value={formData.name}
+            onChange={(e) => handleFormChange("name", e.target.value)}
+            required
+          />
         </div>
         <div className="grid gap-2">
-          <label htmlFor="document-type">Document Type</label>
-          <Select>
+          <label htmlFor="document-type">Document Type*</label>
+          <Select 
+            value={formData.type} 
+            onValueChange={(value) => handleFormChange("type", value)}
+            required
+          >
             <SelectTrigger id="document-type">
               <SelectValue placeholder="Select document type" />
             </SelectTrigger>
@@ -217,28 +253,38 @@ export default function DocumentsPage() {
         </div>
         <div className="grid gap-2">
           <label htmlFor="property">Related Property</label>
-          <Select>
+          <Select 
+            value={formData.property} 
+            onValueChange={(value) => handleFormChange("property", value)}
+          >
             <SelectTrigger id="property">
               <SelectValue placeholder="Select property" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="all">None</SelectItem>
               {properties.map((property) => (
-                <SelectItem key={property} value={property}>
-                  {property}
+                <SelectItem key={property.id} value={property.id}>
+                  {property.name}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="grid gap-2">
-          <label htmlFor="file">File</label>
-          <Input type="file" id="file" />
+          <label htmlFor="file">File*</label>
+          <Input type="file" id="file" ref={fileInputRef} required />
         </div>
-      </div>
-      <div className="flex justify-end">
-        <Button onClick={() => setOpen(false)}>Upload</Button>
-      </div>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={isUploading}>
+            {isUploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Uploading...
+              </>
+            ) : 'Upload'}
+          </Button>
+        </div>
+      </form>
     </DialogContent>
   )
 
@@ -251,6 +297,13 @@ export default function DocumentsPage() {
     { id: "financial", name: "Financial" },
   ]
 
+  // Filter documents based on selected filters
+  const filteredDocuments = documents.filter(doc => {
+    const typeMatch = !documentType || documentType === "all" || doc.type === documentType
+    const propertyMatch = !propertyFilter || propertyFilter === "all" || doc.property_id === propertyFilter
+    return typeMatch && propertyMatch
+  })
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -259,9 +312,13 @@ export default function DocumentsPage() {
         action={{
           label: "Upload Document",
           icon: FileUp,
-          dialogContent: UploadDocumentDialogContent,
+          onClick: () => setOpen(true),
         }}
       />
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        {UploadDocumentDialogContent}
+      </Dialog>
 
       <Tabs defaultValue="all" className="space-y-4">
         <TabsList>
@@ -277,21 +334,26 @@ export default function DocumentsPage() {
             <Card>
               <CardContent className="pt-6">
                 <FilterControls />
-                <DataTable
-                  columns={columns}
-                  data={documents.filter(
-                    (doc) =>
-                      (category.id === "all" ||
-                        (category.id === "contracts" && doc.type === "Contract") ||
-                        (category.id === "inspections" && doc.type === "Inspection") ||
-                        (category.id === "disclosures" && doc.type === "Disclosure") ||
-                        (category.id === "financial" && doc.type === "Financial")) &&
-                      (documentType === "" || doc.type === documentType) &&
-                      (propertyFilter === "" || doc.property === propertyFilter),
-                  )}
-                  searchColumn="name"
-                  searchPlaceholder="Search documents..."
-                />
+                
+                {isLoading && !documents.length ? (
+                  <div className="flex items-center justify-center h-48">
+                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <DataTable
+                    columns={columns}
+                    data={filteredDocuments.filter(doc => {
+                      if (category.id === "all") return true
+                      if (category.id === "contracts" && doc.type === "Contract") return true
+                      if (category.id === "inspections" && doc.type === "Inspection") return true
+                      if (category.id === "disclosures" && doc.type === "Disclosure") return true
+                      if (category.id === "financial" && doc.type === "Financial") return true
+                      return false
+                    })}
+                    searchColumn="name"
+                    searchPlaceholder="Search documents..."
+                  />
+                )}
               </CardContent>
             </Card>
           </TabsContent>

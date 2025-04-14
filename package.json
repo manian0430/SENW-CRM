@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "setup:supabase": "node scripts/setup-supabase.js"
   },
   "dependencies": {
     "@fullcalendar/core": "^6.1.17",
