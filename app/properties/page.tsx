@@ -16,6 +16,7 @@ import { PropertyListItem } from "@/components/ui/property-list-item"
 import { PropertyDetailsDialog } from "@/components/ui/property-details-dialog"
 import { transformCSVToProperties, type Property } from "@/lib/utils/property-data"
 import { toast } from "@/components/ui/use-toast"
+import { useProperties } from "@/contexts/property-context"
 
 // Add this interface for the form
 interface AddPropertyForm {
@@ -36,10 +37,8 @@ interface AddPropertyForm {
 }
 
 export default function PropertiesPage() {
+  const { properties, loading, error, fetchProperties } = useProperties()
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [properties, setProperties] = useState<Property[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
   const [location, setLocation] = useState("")
@@ -69,39 +68,6 @@ export default function PropertiesPage() {
     .map(property => property.universalLandUse)
     .filter(type => type) // Remove null/undefined values
   )].sort()
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    fetch('/data_source/properties.csv')
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Failed to fetch properties data')
-        }
-        return response.text()
-      })
-      .then(csvText => {
-        const parsedData: ParseResult<Record<string, string>> = Papa.parse(csvText, {
-          header: true,
-          skipEmptyLines: true,
-          transformHeader: (header: string) => header.trim(),
-        })
-        
-        if (parsedData.errors.length > 0) {
-          console.error('CSV parsing errors:', parsedData.errors)
-          throw new Error('Failed to parse CSV data')
-        }
-
-        const transformedProperties = transformCSVToProperties(parsedData.data)
-        setProperties(transformedProperties)
-        setLoading(false)
-      })
-      .catch(err => {
-        console.error('Error loading properties:', err)
-        setError('Failed to load properties. Please try again later.')
-        setLoading(false)
-      })
-  }, [])
 
   const filteredProperties = properties.filter((property) => {
     const priceMin = minPrice ? Number.parseInt(minPrice) : 0
@@ -313,8 +279,10 @@ export default function PropertiesPage() {
       images: imageUrls,
     }
 
-    // Add to properties array
-    setProperties(prev => [...prev, newProperty])
+    // Add to properties array (Now we need to update the context)
+    // setProperties(prev => [...prev, newProperty])
+    // Consider how to update context - for now, refetching is simplest
+    await fetchProperties()
     
     // Reset form
     setFormData({
@@ -396,16 +364,16 @@ export default function PropertiesPage() {
               </label>
             </div>
           </div>
-          <div className="grid gap-2">
-            <label htmlFor="address">Address*</label>
-            <Input
-              id="address"
-              placeholder="Street address"
-              value={formData.address}
-              onChange={(e) => handleInputChange("address", e.target.value)}
-            />
-          </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <label htmlFor="address">Address*</label>
+              <Input
+                id="address"
+                placeholder="Address"
+                value={formData.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+              />
+            </div>
             <div className="grid gap-2">
               <label htmlFor="city">City</label>
               <Input
@@ -415,6 +383,8 @@ export default function PropertiesPage() {
                 onChange={(e) => handleInputChange("city", e.target.value)}
               />
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <label htmlFor="state">State</label>
               <Input
@@ -425,10 +395,10 @@ export default function PropertiesPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="zipCode">ZIP Code</label>
+              <label htmlFor="zipCode">Zip Code</label>
               <Input
                 id="zipCode"
-                placeholder="ZIP Code"
+                placeholder="Zip Code"
                 value={formData.zipCode}
                 onChange={(e) => handleInputChange("zipCode", e.target.value)}
               />
@@ -447,46 +417,41 @@ export default function PropertiesPage() {
             </div>
             <div className="grid gap-2">
               <label htmlFor="status">Status</label>
-              <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
-                <SelectTrigger id="status">
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Active">Active</SelectItem>
-                  <SelectItem value="Pending">Pending</SelectItem>
-                  <SelectItem value="Sold">Sold</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                id="status"
+                placeholder="Status (e.g., Active)"
+                value={formData.status}
+                onChange={(e) => handleInputChange("status", e.target.value)}
+              />
             </div>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="grid gap-2">
-              <label htmlFor="beds">Bedrooms</label>
+              <label htmlFor="beds">Beds</label>
               <Input
                 id="beds"
                 type="number"
-                placeholder="Bedrooms"
+                placeholder="Beds"
                 value={formData.beds}
                 onChange={(e) => handleInputChange("beds", e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="baths">Bathrooms</label>
+              <label htmlFor="baths">Baths</label>
               <Input
                 id="baths"
                 type="number"
-                placeholder="Bathrooms"
-                step="0.5"
+                placeholder="Baths"
                 value={formData.baths}
                 onChange={(e) => handleInputChange("baths", e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="livingAreaSqft">Square Feet</label>
+              <label htmlFor="livingAreaSqft">Living Area (sqft)</label>
               <Input
                 id="livingAreaSqft"
                 type="number"
-                placeholder="Square Feet"
+                placeholder="Living Area"
                 value={formData.livingAreaSqft}
                 onChange={(e) => handleInputChange("livingAreaSqft", e.target.value)}
               />

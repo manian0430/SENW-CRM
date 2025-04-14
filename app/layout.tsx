@@ -5,6 +5,7 @@ import "./globals.css"
 import Sidebar from "@/components/layout/sidebar"
 import Header from "@/components/layout/header"
 import { AiAssistant } from "@/components/ui/ai-assistant"
+import { PropertyProvider } from "@/contexts/property-context"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,16 +23,18 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="flex min-h-screen bg-gray-50">
-          <Sidebar />
-          <div className="flex flex-col flex-1 md:ml-64">
-            {" "}
-            {/* Add margin for sidebar */}
-            <Header />
-            <main className="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-6 pt-20 md:pt-24">{children}</main>
+        <PropertyProvider>
+          <div className="flex min-h-screen bg-gray-50">
+            <Sidebar />
+            <div className="flex flex-col flex-1 md:ml-64">
+              {" "}
+              {/* Add margin for sidebar */}
+              <Header />
+              <main className="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-6 pt-20 md:pt-24">{children}</main>
+            </div>
+            <AiAssistant />
           </div>
-          <AiAssistant />
-        </div>
+        </PropertyProvider>
       </body>
     </html>
   )
