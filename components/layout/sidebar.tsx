@@ -100,17 +100,7 @@ export default function Sidebar() {
             )
           })}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-          <div className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-full bg-senw-gold flex items-center justify-center text-black font-semibold">
-              A
-            </div>
-            <div className="text-sm">
-              <p className="font-medium">Admin User</p>
-              <p className="text-xs text-white/60">admin@senwrealty.com</p>
-            </div>
-          </div>
-        </div>
+        {/* Removed user info section from the bottom */}
       </aside>
     </>
   )

@@ -1,25 +1,68 @@
+"use client"; // Make it a client component to use hooks
+
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Users, Home, FileCheck, BarChart, Calendar, FileText, DollarSign } from "lucide-react"
 import { StatCard } from "@/components/ui/stat-card"
+import { useAuth } from "@/contexts/auth-context"; // Import useAuth
+import { useProperties } from "@/contexts/property-context"; // Import useProperties
+import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton
 
 export default function Dashboard() {
-  // Placeholder for API calls
-  // Fetch dashboard stats from /api/dashboard/stats
-  // Fetch recent activity from /api/dashboard/activity
+  const { supabase } = useAuth();
+  const { properties, loading: propertiesLoading } = useProperties(); // Get properties and loading state
 
+  const [leadCount, setLeadCount] = useState<number | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchLeadCount = async () => {
+      setStatsLoading(true);
+      setStatsError(null);
+      try {
+        const { count, error } = await supabase
+          .from('leads')
+          .select('*', { count: 'exact', head: true }); // Only fetch the count
+
+        if (error) {
+          console.error("Error fetching lead count:", error);
+          throw new Error("Could not load lead count.");
+        }
+        setLeadCount(count ?? 0);
+      } catch (err) {
+         setStatsError(err instanceof Error ? err.message : "Failed to load lead count.");
+      } finally {
+         // Loading state will be fully set to false once properties are also loaded/failed
+      }
+    };
+
+    if (supabase) {
+      fetchLeadCount();
+    }
+  }, [supabase]);
+
+  // Update loading state only when both fetches are done
+  useEffect(() => {
+     if (!propertiesLoading && leadCount !== null) {
+       setStatsLoading(false);
+     }
+  }, [propertiesLoading, leadCount])
+
+  // Combine fetched data with mock data for stats
   const stats = [
     {
       title: "Total Leads",
-      value: "120",
+      value: statsLoading ? "-" : leadCount?.toString() ?? "0",
       icon: Users,
       change: "+12%",
-      trend: "up",
+      trend: "up", // Trend data remains mock for now
     },
     {
       title: "Active Listings",
-      value: "45",
+      value: statsLoading ? "-" : properties.length.toString(), // Use length of fetched properties
       icon: Home,
-      change: "+5%",
+      change: "+5%", // Trend data remains mock for now
       trend: "up",
     },
     {
@@ -80,18 +123,31 @@ export default function Dashboard() {
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
-          <StatCard
-            key={stat.title}
-            title={stat.title}
-            value={stat.value}
-            icon={stat.icon}
-            trend={{
-              value: stat.change,
-              direction: stat.trend as "up" | "down",
-              label: "from last month",
-            }}
-          />
+        {stats.map((stat, index) => (
+           statsLoading ? (
+             <Card key={index}>
+               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                 <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
+                 <stat.icon className="h-4 w-4 text-muted-foreground" />
+               </CardHeader>
+               <CardContent>
+                 <Skeleton className="h-8 w-1/2 mb-1" />
+                 <Skeleton className="h-4 w-1/3" />
+               </CardContent>
+             </Card>
+           ) : (
+            <StatCard
+              key={stat.title}
+              title={stat.title}
+              value={stat.value}
+              icon={stat.icon}
+              trend={{ // Keep mock trend data
+                value: stat.change,
+                direction: stat.trend as "up" | "down",
+                label: "from last month",
+              }}
+            />
+           )
         ))}
       </div>
 

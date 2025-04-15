@@ -1,85 +1,106 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react" // Import useEffect
 import { MoreHorizontal, Plus, Eye, Edit } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context" // Import useAuth
 import { Button } from "@/components/ui/button"
-import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog" // Import Dialog components fully
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { DataTable } from "@/components/ui/data-table"
 import { PageHeader } from "@/components/ui/page-header"
+import { Skeleton } from "@/components/ui/skeleton" // Import Skeleton
 import type { ColumnDef } from "@tanstack/react-table"
+import { formatDistanceToNow } from 'date-fns' // For relative time formatting
 
-// Types
+// Types matching Supabase table
 interface Lead {
-  id: number
+  id: string // UUID from Supabase
   name: string
-  email: string
-  phone: string
+  email?: string
+  phone?: string
   status: string
-  agent: string
-  updated: string
+  agent_name?: string // Matches table column
+  notes?: string
+  created_at: string
+  updated_at: string
 }
 
 export default function LeadsPage() {
-  const [open, setOpen] = useState(false)
-  const [statusFilter, setStatusFilter] = useState("")
-  const [agentFilter, setAgentFilter] = useState("")
+  const { supabase } = useAuth(); // Get Supabase client
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all"); // Default to 'all'
+  const [agentFilter, setAgentFilter] = useState("all");
+  const [availableAgents, setAvailableAgents] = useState<string[]>([]); // State for agent names
 
-  // Placeholder for API calls
-  // Fetch leads from /api/leads
+  // Fetch leads data, applying filters
+  useEffect(() => {
+    const fetchLeads = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        let query = supabase
+          .from('leads')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-  const leads = [
-    {
-      id: 1,
-      name: "John Doe",
-      email: "john@example.com",
-      phone: "(555) 123-4567",
-      status: "Hot",
-      agent: "Sarah Johnson",
-      updated: "2 days ago",
-    },
-    {
-      id: 2,
-      name: "Jane Smith",
-      email: "jane@example.com",
-      phone: "(555) 987-6543",
-      status: "Cold",
-      agent: "Mike Wilson",
-      updated: "1 week ago",
-    },
-    {
-      id: 3,
-      name: "Robert Brown",
-      email: "robert@example.com",
-      phone: "(555) 456-7890",
-      status: "New",
-      agent: "Sarah Johnson",
-      updated: "1 day ago",
-    },
-    {
-      id: 4,
-      name: "Emily Davis",
-      email: "emily@example.com",
-      phone: "(555) 234-5678",
-      status: "Hot",
-      agent: "David Miller",
-      updated: "3 days ago",
-    },
-    {
-      id: 5,
-      name: "Michael Wilson",
-      email: "michael@example.com",
-      phone: "(555) 876-5432",
-      status: "New",
-      agent: "Mike Wilson",
-      updated: "Just now",
-    },
-  ]
+        // Apply status filter
+        if (statusFilter && statusFilter !== "all") {
+          query = query.eq('status', statusFilter);
+        }
 
-  const agents = ["Sarah Johnson", "Mike Wilson", "David Miller"]
+        // Apply agent filter
+        if (agentFilter && agentFilter !== "all") {
+          query = query.eq('agent_name', agentFilter);
+        }
+
+        const { data, error: dbError } = await query;
+
+        if (dbError) {
+          console.error("Error fetching leads:", dbError);
+          throw new Error("Could not load leads data.");
+        }
+        setLeads(data || []);
+
+        // Removed agent population from leads fetch
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An unknown error occurred.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchLeads();
+  }, [supabase, statusFilter, agentFilter]); // Re-fetch leads when filters change
+
+  // Fetch available agent names from team_members table on mount
+  useEffect(() => {
+    const fetchAgents = async () => {
+       try {
+         const { data, error } = await supabase
+           .from('team_members')
+           .select('name') // Select only the name column
+           .order('name', { ascending: true });
+
+         if (error) {
+           console.error("Error fetching team members:", error);
+           // Handle error appropriately, maybe set an error state
+         } else {
+           // Extract unique names and update state
+           const uniqueAgentNames = Array.from(new Set(data.map(member => member.name))) as string[];
+           setAvailableAgents(uniqueAgentNames);
+         }
+       } catch (err) {
+          console.error("Client-side error fetching agents:", err);
+       }
+    };
+    fetchAgents();
+  }, [supabase]); // Fetch agents only once when supabase client is available
+
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -121,12 +142,15 @@ export default function LeadsPage() {
       ),
     },
     {
-      accessorKey: "agent",
+      // Corrected: Removed duplicate accessorKey, keep only agent_name
+      accessorKey: "agent_name", // Use agent_name from table
       header: "Assigned Agent",
+      cell: ({ row }) => row.getValue("agent_name") || 'N/A',
     },
     {
-      accessorKey: "updated",
+      accessorKey: "updated_at", // Use updated_at timestamp
       header: "Last Updated",
+      cell: ({ row }) => formatDistanceToNow(new Date(row.getValue("updated_at")), { addSuffix: true }),
     },
     {
       id: "actions",
@@ -175,7 +199,8 @@ export default function LeadsPage() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All Agents</SelectItem>
-          {agents.map((agent) => (
+          {/* Use dynamic agents from state */}
+          {availableAgents.map((agent) => (
             <SelectItem key={agent} value={agent}>
               {agent}
             </SelectItem>
@@ -185,79 +210,148 @@ export default function LeadsPage() {
     </div>
   )
 
-  // Add Lead Dialog Content
-  const AddLeadDialogContent = (
-    <DialogContent>
-      <DialogHeader>
-        <DialogTitle>Add New Lead</DialogTitle>
-      </DialogHeader>
-      <div className="grid gap-4 py-4">
-        <div className="grid gap-2">
-          <label htmlFor="name">Name</label>
-          <Input id="name" placeholder="Full name" />
-        </div>
-        <div className="grid gap-2">
-          <label htmlFor="email">Email</label>
-          <Input id="email" type="email" placeholder="Email address" />
-        </div>
-        <div className="grid gap-2">
-          <label htmlFor="phone">Phone</label>
-          <Input id="phone" placeholder="Phone number" />
-        </div>
-        <div className="grid gap-2">
-          <label htmlFor="notes">Notes</label>
-          <Textarea id="notes" placeholder="Additional information" />
-        </div>
-        <div className="grid gap-2">
-          <label htmlFor="status">Status</label>
-          <Select>
-            <SelectTrigger id="status">
-              <SelectValue placeholder="Select status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Hot">Hot</SelectItem>
-              <SelectItem value="Cold">Cold</SelectItem>
-              <SelectItem value="New">New</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <label htmlFor="agent">Assigned Agent</label>
-          <Select>
-            <SelectTrigger id="agent">
-              <SelectValue placeholder="Select agent" />
-            </SelectTrigger>
-            <SelectContent>
-              {agents.map((agent) => (
-                <SelectItem key={agent} value={agent.toLowerCase().replace(" ", "-")}>
-                  {agent}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <Button onClick={() => setOpen(false)}>Save Lead</Button>
-      </div>
-    </DialogContent>
-  )
+  // Add Lead Dialog Component with state and save logic
+  const AddLeadDialogContent = () => {
+    const [newName, setNewName] = useState('');
+    const [newEmail, setNewEmail] = useState('');
+    const [newPhone, setNewPhone] = useState('');
+    const [newNotes, setNewNotes] = useState('');
+    const [newStatus, setNewStatus] = useState('New'); // Default status
+    const [newAgent, setNewAgent] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    const handleAddLead = async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      setIsSaving(true);
+      setSaveError(null);
+
+      try {
+        const { error: insertError } = await supabase
+          .from('leads')
+          .insert({
+            name: newName,
+            email: newEmail || null, // Handle empty string
+            phone: newPhone || null, // Handle empty string
+            notes: newNotes || null, // Handle empty string
+            status: newStatus,
+            agent_name: newAgent || null, // Handle empty string
+            // created_at and updated_at will be set by default/trigger
+          });
+
+        if (insertError) {
+          console.error("Error inserting lead:", insertError);
+          throw new Error(insertError.message || "Failed to save lead.");
+        }
+
+        // Success
+        setOpenAddDialog(false); // Close dialog
+        // Manually trigger a refresh by changing a dependency of the main fetch useEffect
+        // A simple way is to slightly modify a filter and then reset it,
+        // or add a dedicated refresh state trigger. Let's reset filters for now.
+        setStatusFilter("all");
+        setAgentFilter("all");
+        // Alternatively, could call fetchLeads() directly if passed as prop
+
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : "An unknown error occurred.");
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    return (
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Add New Lead</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleAddLead}>
+          <div className="grid gap-4 py-4">
+            {/* Form fields with state binding */}
+            <div className="grid gap-2">
+              <label htmlFor="name">Name</label>
+              <Input id="name" placeholder="Full name" required value={newName} onChange={(e) => setNewName(e.target.value)} disabled={isSaving} />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="email">Email</label>
+              <Input id="email" type="email" placeholder="Email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} disabled={isSaving} />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="phone">Phone</label>
+              <Input id="phone" placeholder="Phone number" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} disabled={isSaving} />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="notes">Notes</label>
+              <Textarea id="notes" placeholder="Additional information" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} disabled={isSaving} />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="status">Status</label>
+              <Select value={newStatus} onValueChange={setNewStatus} disabled={isSaving}>
+                <SelectTrigger id="status">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="New">New</SelectItem>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Cold">Cold</SelectItem>
+                  {/* Add other statuses if needed */}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="agent">Assigned Agent</label>
+              <Select value={newAgent} onValueChange={setNewAgent} disabled={isSaving}>
+                <SelectTrigger id="agent">
+                  <SelectValue placeholder="Select agent" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">None</SelectItem> {/* Option for no agent */}
+                  {availableAgents.map((agent) => (
+                    <SelectItem key={agent} value={agent}>
+                      {agent}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+             {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+          </div>
+          <div className="flex justify-end">
+            <Button type="submit" disabled={isSaving}>
+              {isSaving ? 'Saving...' : 'Save Lead'}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    );
+  };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Lead Management"
         description="Manage and track your leads"
+        // Reverted: Use the 'action' prop structure expected by PageHeader
         action={{
           label: "Add New Lead",
           icon: Plus,
-          dialogContent: AddLeadDialogContent,
+          // Trigger dialog opening via state, not directly in prop
+          onClick: () => setOpenAddDialog(true),
         }}
       />
 
+      {/* Keep Dialog separate from PageHeader */}
+      <Dialog open={openAddDialog} onOpenChange={setOpenAddDialog}>
+         <AddLeadDialogContent />
+      </Dialog>
+
       <FilterControls />
 
-      <DataTable columns={columns} data={leads} searchColumn="name" searchPlaceholder="Search leads..." />
+      {loading && <Skeleton className="h-64 w-full" />}
+      {error && <p className="text-red-500">Error loading leads: {error}</p>}
+      {!loading && !error && (
+        <DataTable columns={columns} data={leads} searchColumn="name" searchPlaceholder="Search leads..." />
+      )}
     </div>
   )
 }
