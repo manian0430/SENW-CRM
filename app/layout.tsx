@@ -2,10 +2,9 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import Sidebar from "@/components/layout/sidebar"
-import Header from "@/components/layout/header"
-import { AiAssistant } from "@/components/ui/ai-assistant"
-import { PropertyProvider } from "@/contexts/property-context"
+// Remove direct imports of Sidebar, Header, AiAssistant, PropertyProvider
+import { AuthProvider } from "@/contexts/auth-context" // Keep AuthProvider
+import AppShell from "@/components/layout/app-shell" // Import AppShell
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -23,18 +22,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <PropertyProvider>
-          <div className="flex min-h-screen bg-gray-50">
-            <Sidebar />
-            <div className="flex flex-col flex-1 md:ml-64">
-              {" "}
-              {/* Add margin for sidebar */}
-              <Header />
-              <main className="flex-1 overflow-y-auto bg-gray-50 p-4 md:p-6 pt-20 md:pt-24">{children}</main>
-            </div>
-            <AiAssistant />
-          </div>
-        </PropertyProvider>
+        <AuthProvider> {/* AuthProvider remains the outermost provider */}
+          <AppShell>{children}</AppShell> {/* Use AppShell to wrap children */}
+        </AuthProvider>
       </body>
     </html>
   )

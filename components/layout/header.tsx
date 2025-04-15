@@ -1,7 +1,9 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link" // Import Link
 import { Bell, Search, ChevronDown, Settings, LogOut, UserIcon } from "lucide-react"
+import { useAuth } from "@/contexts/auth-context" // Import useAuth
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,12 +13,17 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar" // Import Avatar components
 
 export default function Header() {
-  const [notifications, setNotifications] = useState(3)
+  const [notifications, setNotifications] = useState(3) // Keep notification state for now
+  const { user, signOut, loading } = useAuth() // Get auth state
 
-  // Placeholder for WebSocket connection
-  // WebSocket: Update notification bell
+  const handleLogout = async () => {
+    await signOut()
+    // Optionally redirect or refresh after logout
+    // router.push('/login');
+  }
 
   return (
     <header className="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 md:px-6 fixed top-0 right-0 left-0 md:left-64 z-30 shadow-sm">
@@ -35,39 +42,56 @@ export default function Header() {
           )}
         </Button>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="flex items-center space-x-2 focus:outline-none">
-              <div className="h-8 w-8 rounded-full bg-black text-white flex items-center justify-center">A</div>
-              <div className="flex items-center">
-                <span className="text-sm font-medium">Admin</span>
-                <ChevronDown className="ml-1 h-4 w-4" />
+        {loading ? (
+          <div className="h-8 w-8 rounded-full bg-gray-200 animate-pulse"></div>
+        ) : user ? (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="flex items-center space-x-2 focus:outline-none">
+                <Avatar className="h-8 w-8">
+                  {/* Add AvatarImage if you store user avatars */}
+                  {/* <AvatarImage src={user.user_metadata?.avatar_url} alt={user.email} /> */}
+                  <AvatarFallback>{user.email?.[0]?.toUpperCase() ?? 'U'}</AvatarFallback>
+                </Avatar>
+                <div className="flex items-center">
+                  <span className="text-sm font-medium hidden md:inline">{user.email}</span>
+                  <ChevronDown className="ml-1 h-4 w-4" />
+                </div>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="flex items-center justify-start p-2">
+                <div className="flex flex-col space-y-1 leading-none">
+                  <p className="font-medium">{user.user_metadata?.full_name ?? 'User'}</p>
+                  <p className="text-xs text-muted-foreground">{user.email}</p>
+                </div>
               </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem disabled> {/* Placeholder */}
+                <UserIcon className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem disabled> {/* Placeholder */}
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Settings</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleLogout}>
+                <LogOut className="mr-2 h-4 w-4" />
+                <span>Logout</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ) : (
+          <div className="flex items-center space-x-2">
+            <Button variant="outline" asChild>
+              <Link href="/login">Login</Link>
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <div className="flex items-center justify-start p-2">
-              <div className="flex flex-col space-y-1 leading-none">
-                <p className="font-medium">Admin User</p>
-                <p className="text-xs text-muted-foreground">admin@senwrealty.com</p>
-              </div>
-            </div>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <UserIcon className="mr-2 h-4 w-4" />
-              <span>Profile</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Logout</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <Button asChild>
+              <Link href="/signup">Sign Up</Link>
+            </Button>
+          </div>
+        )}
       </div>
     </header>
   )
