@@ -305,7 +305,7 @@ export default function LeadsPage() {
                   <SelectValue placeholder="Select agent" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem> {/* Option for no agent */}
+                  <SelectItem value="none">None</SelectItem> {/* Changed from empty string to "none" */}
                   {availableAgents.map((agent) => (
                     <SelectItem key={agent} value={agent}>
                       {agent}

@@ -41,7 +41,7 @@ export default function PropertiesPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
-  const [location, setLocation] = useState("")
+  const [location, setLocation] = useState("all")
   const [propertyType, setPropertyType] = useState("")
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -72,14 +72,12 @@ export default function PropertiesPage() {
   const filteredProperties = properties.filter((property) => {
     const priceMin = minPrice ? Number.parseInt(minPrice) : 0
     const priceMax = maxPrice ? Number.parseInt(maxPrice) : Infinity
-    const locationSearch = location.toLowerCase().trim()
+    const locationFilter = location.trim()
 
     const matchesMinPrice = !minPrice || (property.price >= priceMin)
     const matchesMaxPrice = !maxPrice || (property.price <= priceMax)
-    const matchesLocation = !locationSearch || 
-      property.address.toLowerCase().includes(locationSearch) ||
-      property.city.toLowerCase().includes(locationSearch) ||
-      property.state.toLowerCase().includes(locationSearch)
+    const matchesLocation = locationFilter === "all" || 
+      property.state === locationFilter
     const matchesType = !propertyType || propertyType === "all" || 
       (property.universalLandUse && property.universalLandUse === propertyType)
 
@@ -570,15 +568,19 @@ export default function PropertiesPage() {
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Location</label>
-              <div className="relative">
-                <MapPin className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="City, State"
-                  className="pl-8"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-              </div>
+              <Select value={location} onValueChange={setLocation}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select Location" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Locations</SelectItem>
+                  <SelectItem value="Arizona">Arizona</SelectItem>
+                  <SelectItem value="California">California</SelectItem>
+                  <SelectItem value="Florida">Florida</SelectItem>
+                  <SelectItem value="Illinois">Illinois</SelectItem>
+                  <SelectItem value="Wisconsin">Wisconsin</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <label className="text-sm font-medium mb-1 block">Property Type</label>
@@ -603,7 +605,7 @@ export default function PropertiesPage() {
                   // Reset filters
                   setMinPrice("")
                   setMaxPrice("")
-                  setLocation("")
+                  setLocation("all")
                   setPropertyType("")
                 }}
                 variant="outline"

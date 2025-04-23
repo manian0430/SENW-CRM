@@ -36,7 +36,15 @@ export default function TeamPage() {
   })
   const avatarFileRef = useRef<HTMLInputElement>(null)
 
-  const roles = ["Agent", "Admin", "Manager"]
+  // Define the roles array with the new roles
+  const roles = [
+    "Analyst", 
+    "Agent", 
+    "Managing Broker", 
+    "Admin", 
+    "User", 
+    "Client"
+  ]
   const statuses = ["Active", "Inactive"]
 
   const handleFormChange = (field: string, value: string) => {
@@ -292,6 +300,7 @@ export default function TeamPage() {
                 <SelectValue placeholder="Select role" />
               </SelectTrigger>
               <SelectContent>
+                {/* Options generated from the updated roles array */}
                 {roles.map((role) => (
                   <SelectItem key={role} value={role}>
                     {role}
@@ -353,12 +362,16 @@ export default function TeamPage() {
     </Dialog>
   )
 
-  // Team views for tabs
+  // Team views for tabs - Adjust if needed based on new roles
+  // Might need Analyst, Client, User views or keep generic 'All'
   const views = [
     { id: "all", name: "All Members" },
     { id: "agents", name: "Agents" },
+    { id: "managing_brokers", name: "Managing Brokers" }, // Added Managing Broker view
     { id: "admins", name: "Admins" },
-    { id: "managers", name: "Managers" },
+    { id: "analysts", name: "Analysts" }, // Added Analyst view
+    { id: "users", name: "Users" }, // Added User view
+    { id: "clients", name: "Clients" }, // Added Client view
   ]
 
   // Filter team members based on selected filters and view
@@ -468,16 +481,20 @@ export default function TeamPage() {
                   </div>
                 ) : (
                   <>
-                    {/* Table View */}
+                    {/* Table View - Filter logic might need adjustment for new roles */}
                     {viewMode === "table" && (
                       <div className="hidden md:block">
                         <DataTable
                           columns={columns}
                           data={filteredMembers.filter(member => 
-                            view.id === "all" ||
+                            view.id === "all" || 
                             (view.id === "agents" && member.role === "Agent") ||
                             (view.id === "admins" && member.role === "Admin") ||
-                            (view.id === "managers" && member.role === "Manager")
+                            (view.id === "managers" && member.role === "Manager") || // Keep this for now, update if Manager role changes
+                            (view.id === "analysts" && member.role === "Analyst") || 
+                            (view.id === "managing_brokers" && member.role === "Managing Broker") || 
+                            (view.id === "users" && member.role === "User") ||
+                            (view.id === "clients" && member.role === "Client")
                           )}
                           searchColumn="name"
                           searchPlaceholder="Search team members..."
@@ -485,7 +502,7 @@ export default function TeamPage() {
                       </div>
                     )}
 
-                    {/* Card View */}
+                    {/* Card View - Filter logic might need adjustment for new roles */}
                     {viewMode === "card" && (
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                         {filteredMembers
@@ -493,7 +510,11 @@ export default function TeamPage() {
                             view.id === "all" ||
                             (view.id === "agents" && member.role === "Agent") ||
                             (view.id === "admins" && member.role === "Admin") ||
-                            (view.id === "managers" && member.role === "Manager")
+                            (view.id === "managers" && member.role === "Manager") || // Keep this for now
+                            (view.id === "analysts" && member.role === "Analyst") ||
+                            (view.id === "managing_brokers" && member.role === "Managing Broker") ||
+                            (view.id === "users" && member.role === "User") ||
+                            (view.id === "clients" && member.role === "Client")
                           )
                           .map((member) => (
                             <TeamMemberCard key={member.id} member={member} />

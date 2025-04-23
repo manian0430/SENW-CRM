@@ -84,6 +84,33 @@ export function PropertyDetailsDialog({ property, open, onOpenChange }: Property
               {formatCurrency(property.price)}
             </div>
 
+            {/* Golden Details for Brokers */}
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+              <h3 className="text-amber-800 font-semibold mb-3">Broker's Golden Details</h3>
+              <div className="grid grid-cols-5 gap-4">
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-amber-600 text-xs uppercase font-semibold">Cap Rate</div>
+                  <div className="text-lg font-bold">7.2%</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-amber-600 text-xs uppercase font-semibold">Cash Flow</div>
+                  <div className="text-lg font-bold">${(property.price * 0.0045).toLocaleString()}/mo</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-amber-600 text-xs uppercase font-semibold">ROI</div>
+                  <div className="text-lg font-bold">12.5%</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-amber-600 text-xs uppercase font-semibold">$/SQFT</div>
+                  <div className="text-lg font-bold">${Math.round(property.price / (property.livingAreaSqft || 1))}</div>
+                </div>
+                <div className="bg-white rounded-lg p-3 shadow-sm">
+                  <div className="text-amber-600 text-xs uppercase font-semibold">Comp Value</div>
+                  <div className="text-lg font-bold">{formatCurrency(property.price * 1.15)}</div>
+                </div>
+              </div>
+            </div>
+
             <div className="bg-gradient-to-r from-primary/10 via-gray-100 to-transparent h-px w-full" />
 
             {/* Property Details */}

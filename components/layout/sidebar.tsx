@@ -27,7 +27,7 @@ const navItems = [
   { name: "Transactions", href: "/transactions", icon: FileText },
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Analytics", href: "/analytics", icon: BarChart2 },
-  { name: "Documents", href: "/documents", icon: FileIcon },
+  { name: "Documents", href: "/documents", icon: FileIcon, disabled: true },
   { name: "Team", href: "/team", icon: UserPlus },
   { name: "Automation", href: "/automation", icon: Clock },
   { name: "Collaboration", href: "/collaboration", icon: MessageSquare },
@@ -87,12 +87,31 @@ export default function Sidebar() {
         </div>
         <nav className="mt-5 px-2 pb-24">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+            const isActive = !item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`))
+
+            // Instead of conditional component, render different things based on disabled state
+            if (item.disabled) {
+              return (
+                <div
+                  key={item.name}
+                  className="sidebar-item text-gray-500 opacity-50 cursor-not-allowed"
+                  aria-disabled={true}
+                  tabIndex={-1}
+                >
+                  <item.icon className="mr-3 h-5 w-5 text-gray-500 opacity-50" />
+                  {item.name}
+                </div>
+              );
+            }
+
             return (
               <Link
                 key={item.name}
                 href={item.href}
-                className={cn("sidebar-item", isActive ? "sidebar-item-active" : "sidebar-item-inactive")}
+                className={cn(
+                  "sidebar-item",
+                  isActive ? "sidebar-item-active" : "sidebar-item-inactive"
+                )}
               >
                 <item.icon className="mr-3 h-5 w-5" />
                 {item.name}
@@ -100,7 +119,6 @@ export default function Sidebar() {
             )
           })}
         </nav>
-        {/* Removed user info section from the bottom */}
       </aside>
     </>
   )
