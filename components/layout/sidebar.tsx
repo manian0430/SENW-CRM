@@ -16,6 +16,7 @@ import {
   X,
   MessageSquare,
   Clock,
+  Share2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
@@ -31,6 +32,7 @@ const navItems = [
   { name: "Team", href: "/team", icon: UserPlus },
   { name: "Automation", href: "/automation", icon: Clock },
   { name: "Collaboration", href: "/collaboration", icon: MessageSquare },
+  { name: "Social", href: "/social", icon: Share2 },
 ]
 
 export default function Sidebar() {
