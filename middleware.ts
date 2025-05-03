@@ -16,25 +16,19 @@ export async function middleware(request: NextRequest) {
         get(name: string) {
           return request.cookies.get(name)?.value
         },
-        // Corrected: Removed duplicate function signature
         set(name: string, value: string, options: CookieOptions) {
-          // Modify request and response cookies directly
           request.cookies.set({ name, value, ...options });
           response.cookies.set({
             name,
             value,
             ...options,
-            // Add standard attributes for robustness (adjust domain/secure for production)
             path: '/',
-            // domain: 'your-domain.com', // Uncomment and set for production
-            // secure: true, // Uncomment for production (HTTPS)
+            secure: process.env.NODE_ENV === 'production',
             sameSite: 'lax',
             maxAge: options.maxAge,
           })
         },
-        // Corrected: Removed duplicate function signature
         remove(name: string, options: CookieOptions) {
-          // Modify request and response cookies directly
           request.cookies.set({ name, value: '', ...options });
           response.cookies.set({
             name,
@@ -85,8 +79,9 @@ export const config = {
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - api/auth (Supabase auth routes if you use them)
+     * - .(?:svg|png|jpg|jpeg|gif|webp) (image file extensions)
      * Feel free to modify this pattern to include more exceptions.
      */
-    '/((?!_next/static|_next/image|favicon.ico|api/auth).*)',
+    '/((?!_next/static|_next/image|favicon.ico|api/auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
