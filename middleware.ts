@@ -17,19 +17,17 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options });
           response.cookies.set({
             name,
             value,
             ...options,
             path: '/',
-            secure: process.env.NODE_ENV === 'production',
+            secure: true, // Always true in production
             sameSite: 'lax',
             maxAge: options.maxAge,
           })
         },
         remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options });
           response.cookies.set({
             name,
             value: '',
@@ -41,34 +39,26 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Refresh session if expired - important! This needs to be done
-  // before checking the auth status in Server Components or API routes.
-  // We run it here before getUser() as recommended.
-  await supabase.auth.getSession()
-
-  // Check auth status AFTER potential refresh
-  const { data: { user } } = await supabase.auth.getUser();
-
+  const { data: { session } } = await supabase.auth.getSession()
   const { pathname } = request.nextUrl
   const publicPaths = ['/login', '/signup']
 
-  // Restore logic using the user object from getUser()
-  if (!user && !publicPaths.includes(pathname)) {
-    // Allow access to the root path even if not logged in
+  // If there's no session and the path is not public, redirect to login
+  if (!session && !publicPaths.includes(pathname)) {
     if (pathname === '/') {
-       return response; // Allow access to root
+      return response
     }
-    // Redirect to login for other protected paths
-    return NextResponse.redirect(new URL('/login', request.url));
+    const redirectUrl = new URL('/login', request.url)
+    redirectUrl.searchParams.set('redirectedFrom', pathname)
+    return NextResponse.redirect(redirectUrl)
   }
 
-  // Restore logic using the user object from getUser()
-  if (user && publicPaths.includes(pathname)) {
-    return NextResponse.redirect(new URL('/', request.url));
+  // If there's a session and the path is public, redirect to home
+  if (session && publicPaths.includes(pathname)) {
+    return NextResponse.redirect(new URL('/', request.url))
   }
 
-  // Allow request to proceed
-  return response;
+  return response
 }
 
 export const config = {
