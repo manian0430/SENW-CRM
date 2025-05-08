@@ -14,6 +14,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { Skeleton } from "@/components/ui/skeleton" // Import Skeleton
 import type { ColumnDef } from "@tanstack/react-table"
 import { formatDistanceToNow } from 'date-fns' // For relative time formatting
+import { useRouter, useSearchParams } from 'next/navigation'
 
 // Types matching Supabase table
 interface Lead {
@@ -30,6 +31,8 @@ interface Lead {
 
 export default function LeadsPage() {
   const { supabase } = useAuth(); // Get Supabase client
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,6 +40,34 @@ export default function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState("all"); // Default to 'all'
   const [agentFilter, setAgentFilter] = useState("all");
   const [availableAgents, setAvailableAgents] = useState<string[]>([]); // State for agent names
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+
+  // Sync filters from URL on mount
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const agent = searchParams.get('agent');
+    if (status) setStatusFilter(status);
+    if (agent) setAgentFilter(agent);
+  }, [searchParams]);
+
+  // Update URL when filters change
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (statusFilter && statusFilter !== 'all') {
+      params.set('status', statusFilter);
+    } else {
+      params.delete('status');
+    }
+    if (agentFilter && agentFilter !== 'all') {
+      params.set('agent', agentFilter);
+    } else {
+      params.delete('agent');
+    }
+    const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+    window.history.replaceState({}, '', newUrl);
+  }, [statusFilter, agentFilter]);
 
   // Fetch leads data, applying filters
   useEffect(() => {
@@ -164,11 +195,11 @@ export default function LeadsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSelectedLead(row.original); setViewDialogOpen(true); }}>
                 <Eye className="mr-2 h-4 w-4" />
                 View Details
               </DropdownMenuItem>
-              <DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSelectedLead(row.original); setEditDialogOpen(true); }}>
                 <Edit className="mr-2 h-4 w-4" />
                 Edit Lead
               </DropdownMenuItem>
@@ -227,31 +258,37 @@ export default function LeadsPage() {
       setSaveError(null);
 
       try {
-        const { error: insertError } = await supabase
+        const { data: newLead, error: insertError } = await supabase
           .from('leads')
           .insert({
             name: newName,
-            email: newEmail || null, // Handle empty string
-            phone: newPhone || null, // Handle empty string
-            notes: newNotes || null, // Handle empty string
+            email: newEmail || null,
+            phone: newPhone || null,
+            notes: newNotes || null,
             status: newStatus,
-            agent_name: newAgent || null, // Handle empty string
-            // created_at and updated_at will be set by default/trigger
-          });
+            agent_name: newAgent || null,
+          })
+          .select()
+          .single();
 
         if (insertError) {
           console.error("Error inserting lead:", insertError);
           throw new Error(insertError.message || "Failed to save lead.");
         }
 
-        // Success
-        setOpenAddDialog(false); // Close dialog
-        // Manually trigger a refresh by changing a dependency of the main fetch useEffect
-        // A simple way is to slightly modify a filter and then reset it,
-        // or add a dedicated refresh state trigger. Let's reset filters for now.
-        setStatusFilter("all");
-        setAgentFilter("all");
-        // Alternatively, could call fetchLeads() directly if passed as prop
+        // Success - update the leads list immediately
+        if (newLead) {
+          setLeads(prevLeads => [newLead, ...prevLeads]);
+        }
+
+        // Reset form and close dialog
+        setNewName('');
+        setNewEmail('');
+        setNewPhone('');
+        setNewNotes('');
+        setNewStatus('New');
+        setNewAgent('');
+        setOpenAddDialog(false);
 
       } catch (err) {
         setSaveError(err instanceof Error ? err.message : "An unknown error occurred.");
@@ -326,6 +363,143 @@ export default function LeadsPage() {
     );
   };
 
+  // View Lead Dialog
+  const ViewLeadDialog = () => (
+    <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Lead Details</DialogTitle>
+        </DialogHeader>
+        {selectedLead && (
+          <div className="grid gap-2 py-2">
+            <div><strong>Name:</strong> {selectedLead.name}</div>
+            <div><strong>Email:</strong> {selectedLead.email || 'N/A'}</div>
+            <div><strong>Phone:</strong> {selectedLead.phone || 'N/A'}</div>
+            <div><strong>Status:</strong> {selectedLead.status}</div>
+            <div><strong>Agent:</strong> {selectedLead.agent_name || 'N/A'}</div>
+            <div><strong>Notes:</strong> {selectedLead.notes || 'N/A'}</div>
+            <div><strong>Created:</strong> {selectedLead.created_at}</div>
+            <div><strong>Updated:</strong> {selectedLead.updated_at}</div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+
+  // Edit Lead Dialog
+  const EditLeadDialog = () => {
+    const [editName, setEditName] = useState(selectedLead?.name || '');
+    const [editEmail, setEditEmail] = useState(selectedLead?.email || '');
+    const [editPhone, setEditPhone] = useState(selectedLead?.phone || '');
+    const [editNotes, setEditNotes] = useState(selectedLead?.notes || '');
+    const [editStatus, setEditStatus] = useState(selectedLead?.status || 'New');
+    const [editAgent, setEditAgent] = useState(selectedLead?.agent_name || '');
+    const [isSaving, setIsSaving] = useState(false);
+    const [saveError, setSaveError] = useState<string | null>(null);
+
+    useEffect(() => {
+      setEditName(selectedLead?.name || '');
+      setEditEmail(selectedLead?.email || '');
+      setEditPhone(selectedLead?.phone || '');
+      setEditNotes(selectedLead?.notes || '');
+      setEditStatus(selectedLead?.status || 'New');
+      setEditAgent(selectedLead?.agent_name || '');
+    }, [selectedLead]);
+
+    const handleEditLead = async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!selectedLead) return;
+      setIsSaving(true);
+      setSaveError(null);
+      try {
+        const { data: updatedLead, error: updateError } = await supabase
+          .from('leads')
+          .update({
+            name: editName,
+            email: editEmail || null,
+            phone: editPhone || null,
+            notes: editNotes || null,
+            status: editStatus,
+            agent_name: editAgent || null,
+          })
+          .eq('id', selectedLead.id)
+          .select()
+          .single();
+        if (updateError) {
+          throw new Error(updateError.message || 'Failed to update lead.');
+        }
+        // Update leads list in state
+        setLeads(prev => prev.map(l => l.id === selectedLead.id ? updatedLead : l));
+        setEditDialogOpen(false);
+      } catch (err) {
+        setSaveError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      } finally {
+        setIsSaving(false);
+      }
+    };
+
+    return (
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Lead</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditLead}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <label htmlFor="edit-name">Name</label>
+                <Input id="edit-name" value={editName} onChange={e => setEditName(e.target.value)} required disabled={isSaving} />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="edit-email">Email</label>
+                <Input id="edit-email" type="email" value={editEmail} onChange={e => setEditEmail(e.target.value)} disabled={isSaving} />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="edit-phone">Phone</label>
+                <Input id="edit-phone" value={editPhone} onChange={e => setEditPhone(e.target.value)} disabled={isSaving} />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="edit-notes">Notes</label>
+                <Textarea id="edit-notes" value={editNotes} onChange={e => setEditNotes(e.target.value)} disabled={isSaving} />
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="edit-status">Status</label>
+                <Select value={editStatus} onValueChange={setEditStatus} disabled={isSaving}>
+                  <SelectTrigger id="edit-status">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="New">New</SelectItem>
+                    <SelectItem value="Hot">Hot</SelectItem>
+                    <SelectItem value="Cold">Cold</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <label htmlFor="edit-agent">Assigned Agent</label>
+                <Select value={editAgent} onValueChange={setEditAgent} disabled={isSaving}>
+                  <SelectTrigger id="edit-agent">
+                    <SelectValue placeholder="Select agent" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {availableAgents.map((agent) => (
+                      <SelectItem key={agent} value={agent}>{agent}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {saveError && <p className="text-sm text-red-500">{saveError}</p>}
+            </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={isSaving}>{isSaving ? 'Saving...' : 'Save Changes'}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -344,6 +518,8 @@ export default function LeadsPage() {
       <Dialog open={openAddDialog} onOpenChange={setOpenAddDialog}>
          <AddLeadDialogContent />
       </Dialog>
+      <ViewLeadDialog />
+      <EditLeadDialog />
 
       <FilterControls />
 

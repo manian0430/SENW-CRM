@@ -75,6 +75,10 @@
   }
 }
 
+html {
+  overflow-y: scroll;
+}
+
 .gold-gradient {
   background: linear-gradient(135deg, #d4ab37 0%, #f5d77f 50%, #d4ab37 100%);
 }

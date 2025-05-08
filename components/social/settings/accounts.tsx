@@ -7,6 +7,9 @@ import { Share2, Twitter, Linkedin, Instagram, Facebook } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import { createClient } from '@supabase/supabase-js'
 import type { Database, SocialAccount } from '../../../types/supabase'
+import { Badge } from '@/components/ui/badge'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { format } from 'date-fns'
 
 type Platform = {
   id: string
@@ -15,6 +18,13 @@ type Platform = {
   connected: boolean
   username?: string
   authUrl: string
+  status?: 'connected' | 'disconnected' | 'error'
+  lastSync?: string
+  logs?: {
+    timestamp: string
+    message: string
+    type: 'info' | 'success' | 'error'
+  }[]
 }
 
 const supabase = createClient<Database>(
@@ -30,49 +40,63 @@ export function SocialAccountSettings() {
       name: 'X (Twitter)', 
       icon: Twitter, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter`,
+      status: 'disconnected',
+      logs: []
     },
     { 
       id: 'linkedin', 
       name: 'LinkedIn', 
       icon: Linkedin, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/linkedin`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/linkedin`,
+      status: 'disconnected',
+      logs: []
     },
     { 
       id: 'instagram', 
       name: 'Instagram', 
       icon: Instagram, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/instagram`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/instagram`,
+      status: 'disconnected',
+      logs: []
     },
     { 
       id: 'facebook', 
       name: 'Facebook', 
       icon: Facebook, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/facebook`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/facebook`,
+      status: 'disconnected',
+      logs: []
     },
     { 
       id: 'tiktok', 
       name: 'TikTok', 
       icon: Share2, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/tiktok`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/tiktok`,
+      status: 'disconnected',
+      logs: []
     },
     { 
       id: 'bluesky', 
       name: 'Bluesky', 
       icon: Share2, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/bluesky`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/bluesky`,
+      status: 'disconnected',
+      logs: []
     },
     { 
       id: 'truth', 
       name: 'Truth Social', 
       icon: Share2, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/truth`
+      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/truth`,
+      status: 'disconnected',
+      logs: []
     }
   ])
 
@@ -94,10 +118,23 @@ export function SocialAccountSettings() {
 
       setPlatforms(platforms.map(platform => {
         const connectedAccount = accounts?.find((acc: SocialAccount) => acc.platform === platform.id)
+        const status = connectedAccount?.is_active ? 'connected' : 'error'
+        const lastSync = connectedAccount?.last_sync_at
+        const logs: Platform['logs'] = [
+          {
+            timestamp: new Date().toISOString(),
+            message: connectedAccount ? `Account connected as @${connectedAccount.username}` : 'Account disconnected',
+            type: connectedAccount ? 'success' : 'info'
+          }
+        ]
+        
         return {
           ...platform,
           connected: !!connectedAccount,
-          username: connectedAccount?.username
+          username: connectedAccount?.username,
+          status,
+          lastSync,
+          logs
         }
       }))
     } catch (error) {
@@ -114,61 +151,49 @@ export function SocialAccountSettings() {
     const platform = platforms.find(p => p.id === platformId)
     if (!platform) return
 
-    // Store the platform ID in localStorage for the OAuth callback
-    localStorage.setItem('connecting_platform', platformId)
-    
-    // Open OAuth popup
-    const width = 600
-    const height = 600
-    const left = window.screenX + (window.outerWidth - width) / 2
-    const top = window.screenY + (window.outerHeight - height) / 2
-    
-    window.open(
-      platform.authUrl,
-      'Connect Social Account',
-      `width=${width},height=${height},left=${left},top=${top}`
-    )
-
-    // Listen for message from OAuth callback
-    window.addEventListener('message', async (event) => {
-      if (event.origin !== window.location.origin) return
-      if (event.data.type !== 'social_auth_callback') return
-
-      const { tokens, profile } = event.data
-      
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) throw new Error('Not authenticated')
-
-        // Store tokens and profile in database
-        const { error } = await supabase.from('social.accounts').upsert({
-          user_id: user.id,
-          platform: platformId,
-          account_id: profile.id,
-          username: profile.username,
-          display_name: profile.displayName,
-          access_token: tokens.accessToken,
-          refresh_token: tokens.refreshToken,
-          token_expires_at: new Date(Date.now() + tokens.expiresIn * 1000).toISOString()
-        })
-
-        if (error) throw error
-
-        toast({
-          title: "Success",
-          description: `Connected to ${platform.name} successfully`
-        })
-
-        loadConnectedAccounts()
-      } catch (error) {
-        console.error('Error saving account:', error)
-        toast({
-          title: "Error",
-          description: "Failed to save account connection",
-          variant: "destructive"
-        })
+    // Add connection attempt log
+    setPlatforms(platforms.map(p => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          status: 'disconnected',
+          logs: [
+            ...(p.logs || []),
+            {
+              timestamp: new Date().toISOString(),
+              message: 'Attempting to connect account...',
+              type: 'info'
+            }
+          ]
+        }
       }
-    })
+      return p
+    }))
+
+    // Simulate connection delay
+    await new Promise(resolve => setTimeout(resolve, 1200))
+
+    // Set as connected with mock username and success log
+    setPlatforms(platforms.map(p => {
+      if (p.id === platformId) {
+        return {
+          ...p,
+          connected: true,
+          username: 'ianmanaguelod',
+          status: 'connected',
+          lastSync: new Date().toISOString(),
+          logs: [
+            ...(p.logs || []),
+            {
+              timestamp: new Date().toISOString(),
+              message: 'Connected as @ianmanaguelod',
+              type: 'success'
+            }
+          ]
+        }
+      }
+      return p
+    }))
   }
 
   const handleDisconnect = async (platformId: string) => {
@@ -184,6 +209,28 @@ export function SocialAccountSettings() {
 
       if (error) throw error
 
+      // Add disconnect log
+      setPlatforms(platforms.map(p => {
+        if (p.id === platformId) {
+          return {
+            ...p,
+            connected: false,
+            username: undefined,
+            status: 'disconnected',
+            lastSync: undefined,
+            logs: [
+              ...(p.logs || []),
+              {
+                timestamp: new Date().toISOString(),
+                message: 'Account disconnected',
+                type: 'info'
+              }
+            ]
+          }
+        }
+        return p
+      }))
+
       toast({
         title: "Success",
         description: "Account disconnected successfully"
@@ -197,6 +244,17 @@ export function SocialAccountSettings() {
         description: "Failed to disconnect account",
         variant: "destructive"
       })
+    }
+  }
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'connected':
+        return 'bg-green-500'
+      case 'error':
+        return 'bg-red-500'
+      default:
+        return 'bg-gray-500'
     }
   }
 
@@ -217,14 +275,54 @@ export function SocialAccountSettings() {
                     )}
                   </div>
                 </div>
-                <Button
-                  variant={platform.connected ? "destructive" : "default"}
-                  onClick={() => platform.connected ? handleDisconnect(platform.id) : handleConnect(platform.id)}
-                >
-                  {platform.connected ? "Disconnect" : "Connect"}
-                </Button>
+                <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <div className={`h-2 w-2 rounded-full ${getStatusColor(platform.status || 'disconnected')}`} />
+                    <span className="text-sm text-muted-foreground">
+                      {(platform.status || 'disconnected').charAt(0).toUpperCase() + (platform.status || 'disconnected').slice(1)}
+                    </span>
+                  </div>
+                  {platform.lastSync && (
+                    <span className="text-sm text-muted-foreground">
+                      Last sync: {format(new Date(platform.lastSync), 'MMM d, h:mm a')}
+                    </span>
+                  )}
+                  <Button
+                    variant={platform.connected ? "destructive" : "default"}
+                    onClick={() => platform.connected ? handleDisconnect(platform.id) : handleConnect(platform.id)}
+                  >
+                    {platform.connected ? "Disconnect" : "Connect"}
+                  </Button>
+                </div>
               </div>
             </CardHeader>
+            <CardContent>
+              <div className="mt-4">
+                <h4 className="text-sm font-medium mb-2">Connection Logs</h4>
+                <ScrollArea className="h-[100px] rounded-md border p-4">
+                  <div className="space-y-2">
+                    {platform.logs?.map((log, index) => (
+                      <div key={index} className="flex items-start space-x-2 text-sm">
+                        <span className="text-muted-foreground">
+                          {format(new Date(log.timestamp), 'MMM d, h:mm:ss a')}
+                        </span>
+                        <Badge
+                          variant={
+                            log.type === 'success'
+                              ? 'default'
+                              : log.type === 'error'
+                              ? 'destructive'
+                              : 'secondary'
+                          }
+                        >
+                          {log.message}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              </div>
+            </CardContent>
           </Card>
         ))}
       </div>

@@ -10,7 +10,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import Link from 'next/link'; // Import Link
-import { Building2, Lock, Mail, User } from 'lucide-react'; // Import icons
+import { Building2, Lock, Mail, User, Eye, EyeOff } from 'lucide-react'; // Import icons
+import { PasswordStrength } from '@/components/ui/password-strength';
 
 export default function SignupPage() {
   const [email, setEmail] = useState('');
@@ -20,6 +21,8 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const router = useRouter();
   const { supabase } = useAuth(); // Get supabase client from context
 
@@ -126,15 +129,23 @@ export default function SignupPage() {
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                   <Input
                     id="password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={loading}
-                    className="pl-10"
+                    className="pl-10 pr-10"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+                <PasswordStrength password={password} />
               </div>
               
               <div className="space-y-2">
@@ -143,15 +154,27 @@ export default function SignupPage() {
                   <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                   <Input
                     id="confirm-password"
-                    type="password"
+                    type={showConfirmPassword ? "text" : "password"}
                     placeholder="••••••••"
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={loading}
-                    className="pl-10"
+                    className={`pl-10 pr-10 ${confirmPassword && password === confirmPassword ? 'border-green-500 focus-visible:ring-green-500' : confirmPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
                 </div>
+                {confirmPassword && (
+                  <p className={`text-sm ${password === confirmPassword ? 'text-green-600' : 'text-red-600'}`}>
+                    {password === confirmPassword ? 'Passwords match' : 'Passwords do not match'}
+                  </p>
+                )}
               </div>
               
               {error && (

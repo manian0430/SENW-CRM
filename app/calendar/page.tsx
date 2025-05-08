@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -305,84 +305,117 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className="text-2xl font-bold">Appointment Scheduler</h1>
         <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) resetFormAndClose(); else setOpen(true); }}>
           <DialogTrigger asChild>
-            <Button onClick={() => { setIsEditing(false); setFormState(DEFAULT_FORM_STATE); setOpen(true); }}>
+            <Button className="w-full sm:w-auto" onClick={() => { setIsEditing(false); setFormState(DEFAULT_FORM_STATE); setOpen(true); }}>
               <CalendarIcon className="mr-2 h-4 w-4" />
               Schedule Appointment
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>{isEditing ? 'Edit Appointment' : 'Schedule Appointment'}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <label htmlFor="title">Title*</label>
-                <Input id="title" placeholder="Appointment title" value={formState.title} onChange={e => handleInputChange('title', e.target.value)} />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+            <div className="flex-1 overflow-y-auto pr-6 -mr-6 px-2 sm:px-4">
+              <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <label htmlFor="date">Date*</label>
-                  <Input id="date" type="date" value={formState.date} onChange={e => handleInputChange('date', e.target.value)} />
+                  <label htmlFor="title" className="text-sm font-medium">Title*</label>
+                  <Input 
+                    id="title" 
+                    placeholder="Appointment title" 
+                    value={formState.title} 
+                    onChange={e => handleInputChange('title', e.target.value)}
+                    className="focus-visible:ring-1 focus-visible:ring-offset-0" 
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <label htmlFor="date" className="text-sm font-medium">Date*</label>
+                    <Input 
+                      id="date" 
+                      type="date" 
+                      value={formState.date} 
+                      onChange={e => handleInputChange('date', e.target.value)}
+                      className="focus-visible:ring-1 focus-visible:ring-offset-0" 
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <label htmlFor="time" className="text-sm font-medium">Time*</label>
+                    <Input 
+                      id="time" 
+                      type="time" 
+                      value={formState.time} 
+                      onChange={e => handleInputChange('time', e.target.value)}
+                      className="focus-visible:ring-1 focus-visible:ring-offset-0" 
+                    />
+                  </div>
                 </div>
                 <div className="grid gap-2">
-                  <label htmlFor="time">Time*</label>
-                  <Input id="time" type="time" value={formState.time} onChange={e => handleInputChange('time', e.target.value)} />
+                  <label htmlFor="duration" className="text-sm font-medium">Duration*</label>
+                  <Select value={formState.duration_minutes} onValueChange={value => handleInputChange('duration_minutes', value)}>
+                    <SelectTrigger id="duration" className="focus-visible:ring-1 focus-visible:ring-offset-0">
+                      <SelectValue placeholder="Select duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 minutes</SelectItem>
+                      <SelectItem value="60">1 hour</SelectItem>
+                      <SelectItem value="90">1.5 hours</SelectItem>
+                      <SelectItem value="120">2 hours</SelectItem>
+                      <SelectItem value="180">3 hours</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="duration">Duration*</label>
-                <Select value={formState.duration_minutes} onValueChange={value => handleInputChange('duration_minutes', value)}>
-                  <SelectTrigger id="duration">
-                    <SelectValue placeholder="Select duration" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 minutes</SelectItem>
-                    <SelectItem value="60">1 hour</SelectItem>
-                    <SelectItem value="90">1.5 hours</SelectItem>
-                    <SelectItem value="120">2 hours</SelectItem>
-                    <SelectItem value="180">3 hours</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="purpose">Purpose</label>
-                <Select value={formState.purpose || ''} onValueChange={value => handleInputChange('purpose', value)}>
-                  <SelectTrigger id="purpose">
-                    <SelectValue placeholder="Select purpose" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Showing">Showing</SelectItem>
-                    <SelectItem value="Meeting">Meeting</SelectItem>
-                    <SelectItem value="Open House">Open House</SelectItem>
-                    <SelectItem value="Closing">Closing</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="attendees">Attendees</label>
-                <Input id="attendees" placeholder="Enter names separated by commas" value={formState.attendees} onChange={e => handleInputChange('attendees', e.target.value)} />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="notes">Notes</label>
-                <Textarea id="notes" placeholder="Additional information" value={formState.notes} onChange={e => handleInputChange('notes', e.target.value)} />
+                <div className="grid gap-2">
+                  <label htmlFor="purpose" className="text-sm font-medium">Purpose</label>
+                  <Select value={formState.purpose || ''} onValueChange={value => handleInputChange('purpose', value)}>
+                    <SelectTrigger id="purpose" className="focus-visible:ring-1 focus-visible:ring-offset-0">
+                      <SelectValue placeholder="Select purpose" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Showing">Showing</SelectItem>
+                      <SelectItem value="Meeting">Meeting</SelectItem>
+                      <SelectItem value="Open House">Open House</SelectItem>
+                      <SelectItem value="Closing">Closing</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="attendees" className="text-sm font-medium">Attendees</label>
+                  <Input 
+                    id="attendees" 
+                    placeholder="Enter names separated by commas" 
+                    value={formState.attendees} 
+                    onChange={e => handleInputChange('attendees', e.target.value)}
+                    className="focus-visible:ring-1 focus-visible:ring-offset-0" 
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <label htmlFor="notes" className="text-sm font-medium">Notes</label>
+                  <Textarea 
+                    id="notes" 
+                    placeholder="Additional information" 
+                    value={formState.notes} 
+                    onChange={e => handleInputChange('notes', e.target.value)}
+                    className="focus-visible:ring-1 focus-visible:ring-offset-0 resize-none" 
+                  />
+                </div>
               </div>
             </div>
-            <div className="flex justify-between">
-               {isEditing && (
-                <Button variant="destructive" onClick={handleDeleteAppointment} disabled={loading}>
-                  Delete
+            <DialogFooter className="mt-4 pt-4 border-t">
+              <div className="flex flex-col sm:flex-row gap-2 w-full">
+                {isEditing && (
+                  <Button variant="destructive" onClick={handleDeleteAppointment} disabled={loading} className="w-full sm:w-auto">
+                    Delete
+                  </Button>
+                )}
+                <Button onClick={handleSaveAppointment} disabled={loading} className="w-full sm:w-auto">
+                  {isEditing ? 'Update Appointment' : 'Save Appointment'}
                 </Button>
-              )}
-              {!isEditing && <div></div>} {/* Placeholder to keep Save button to the right */} 
-              <Button onClick={handleSaveAppointment} disabled={loading}>
-                {isEditing ? 'Update Appointment' : 'Save Appointment'}
-              </Button>
-            </div>
+              </div>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
@@ -402,29 +435,29 @@ export default function CalendarPage() {
             </div>
           )}
           {!loading && !error && (
-            <FullCalendar
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="timeGridWeek" // Default view
-              headerToolbar={{
-                left: 'prev,next today',
-                center: 'title',
-                right: 'dayGridMonth,timeGridWeek,timeGridDay' // View options
-              }}
-              events={mapAppointmentsToEvents(appointments)} // Map fetched data
-              editable={true} // Allows dragging/resizing (requires backend update logic)
-              selectable={true} // Allows selecting date ranges
-              selectMirror={true}
-              dayMaxEvents={true} // Show "+X more" link when too many events
-              weekends={true}
-              select={handleDateSelect} // Handler for selecting a date/time range
-              eventClick={handleEventClick} // Handler for clicking an event
-              // eventDrop={handleEventDrop} // TODO: Handler for drag-and-drop update
-              // eventResize={handleEventResize} // TODO: Handler for resize update
-              height="auto" // Adjust height automatically
-              contentHeight="auto"
-              slotMinTime="08:00:00" // Start day at 8 AM
-              slotMaxTime="20:00:00" // End day at 8 PM
-            />
+            <div className="calendar-container">
+              <FullCalendar
+                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                initialView="timeGridWeek"
+                headerToolbar={{
+                  left: 'prev,next today',
+                  center: 'title',
+                  right: 'dayGridMonth,timeGridWeek,timeGridDay'
+                }}
+                events={mapAppointmentsToEvents(appointments)}
+                editable={true}
+                selectable={true}
+                selectMirror={true}
+                dayMaxEvents={true}
+                weekends={true}
+                select={handleDateSelect}
+                eventClick={handleEventClick}
+                height="auto"
+                contentHeight="auto"
+                slotMinTime="08:00:00"
+                slotMaxTime="20:00:00"
+              />
+            </div>
           )}
         </CardContent>
       </Card>
