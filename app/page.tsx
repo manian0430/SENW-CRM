@@ -7,9 +7,11 @@ import { StatCard } from "@/components/ui/stat-card"
 import { useAuth } from "@/contexts/auth-context"; // Import useAuth
 import { useProperties } from "@/contexts/property-context"; // Import useProperties
 import { Skeleton } from "@/components/ui/skeleton"; // Import Skeleton
+import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
-  const { supabase } = useAuth();
+  const { supabase, user, loading } = useAuth();
+  const router = useRouter();
   const { properties, loading: propertiesLoading } = useProperties(); // Get properties and loading state
 
   const [leadCount, setLeadCount] = useState<number | null>(null);
@@ -48,6 +50,13 @@ export default function Dashboard() {
        setStatsLoading(false);
      }
   }, [propertiesLoading, leadCount])
+
+  // Redirect to /login if not authenticated
+  useEffect(() => {
+    if (!loading && !user) {
+      router.replace('/login');
+    }
+  }, [user, loading, router]);
 
   // Combine fetched data with mock data for stats
   const stats = [
@@ -110,6 +119,10 @@ export default function Dashboard() {
       default:
         return <Users className="h-4 w-4" />
     }
+  }
+
+  if (loading || !user) {
+    return null;
   }
 
   return (
