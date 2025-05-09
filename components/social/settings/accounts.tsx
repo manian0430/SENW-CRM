@@ -148,10 +148,23 @@ export function SocialAccountSettings() {
   }
 
   const handleConnect = async (platformId: string) => {
-    const platform = platforms.find(p => p.id === platformId)
-    if (!platform) return
-
-    // Add connection attempt log
+    // Use Supabase OAuth for supported providers
+    if (["facebook", "twitter", "linkedin", "linkedin_oidc", "instagram", "tiktok"].includes(platformId)) {
+      if (platformId === "facebook") {
+        await supabase.auth.signInWithOAuth({
+          provider: "facebook",
+          options: { scopes: "email,public_profile" }
+        });
+        return;
+      }
+      if (platformId === "linkedin" || platformId === "linkedin_oidc") {
+        await supabase.auth.signInWithOAuth({ provider: "linkedin_oidc" });
+        return;
+      }
+      await supabase.auth.signInWithOAuth({ provider: platformId as any });
+      return;
+    }
+    // Fallback: simulate connection for unsupported providers
     setPlatforms(platforms.map(p => {
       if (p.id === platformId) {
         return {
@@ -169,11 +182,7 @@ export function SocialAccountSettings() {
       }
       return p
     }))
-
-    // Simulate connection delay
     await new Promise(resolve => setTimeout(resolve, 1200))
-
-    // Set as connected with mock username and success log
     setPlatforms(platforms.map(p => {
       if (p.id === platformId) {
         return {
