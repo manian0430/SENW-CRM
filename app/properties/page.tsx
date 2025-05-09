@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Search, MapPin, DollarSign, Plus, LayoutGrid, List, Loader2, UploadCloud, X } from "lucide-react"
 import Papa from 'papaparse'
 import type { ParseResult } from 'papaparse'
@@ -65,6 +65,8 @@ export default function PropertiesPage() {
   })
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 9 // Number of items to show per page
+  const [importing, setImporting] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   // Add this new code to get unique property types
   const uniquePropertyTypes = [...new Set(properties
@@ -321,6 +323,52 @@ export default function PropertiesPage() {
     })
   }
 
+  const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    try {
+      Papa.parse(file as any, {
+        header: true,
+        complete: async (results: ParseResult<any>) => {
+          try {
+            const newProperties = transformCSVToProperties(results.data)
+            // Here you would update your backend or properties.csv file
+            // For now, just show a toast and refresh
+            await fetchProperties()
+            toast({
+              title: "Success",
+              description: `${newProperties.length} properties imported successfully!`
+            })
+          } catch (err) {
+            toast({
+              title: "Error",
+              description: "Failed to import properties",
+              variant: "destructive"
+            })
+          } finally {
+            setImporting(false)
+          }
+        },
+        error: () => {
+          toast({
+            title: "Error",
+            description: "Failed to parse CSV file",
+            variant: "destructive"
+          })
+          setImporting(false)
+        }
+      } as any)
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to import properties",
+        variant: "destructive"
+      })
+      setImporting(false)
+    }
+  }
+
   // Update the AddPropertyDialogContent
   const AddPropertyDialogContent = (
     <Dialog open={addPropertyOpen} onOpenChange={setAddPropertyOpen}>
@@ -546,15 +594,34 @@ export default function PropertiesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Property Listings"
-        description="Manage your property listings"
-        action={{
-          label: "Add Property",
-          icon: Plus,
-          onClick: () => setAddPropertyOpen(true),
-        }}
-      />
+      <div className="flex items-center justify-between">
+        <PageHeader
+          title="Property Listings"
+          description="Manage your property listings"
+        />
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            onClick={() => setAddPropertyOpen(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" /> Add Property
+          </Button>
+          <Button
+            variant="outline"
+            disabled={importing}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <UploadCloud className="mr-2 h-4 w-4" /> Import CSV
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleImportCSV}
+          />
+        </div>
+      </div>
 
       {/* Filter Section */}
       <Card>

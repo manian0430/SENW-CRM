@@ -35,7 +35,7 @@ export function SocialAccountSettings() {
   const { toast } = useToast()
   const [platforms, setPlatforms] = useState<Platform[]>([
     { 
-      id: 'twitter', 
+      id: 'x', 
       name: 'X (Twitter)', 
       icon: Twitter, 
       connected: false,
@@ -43,7 +43,7 @@ export function SocialAccountSettings() {
       logs: []
     },
     { 
-      id: 'linkedin_oidc', 
+      id: 'linkedin', 
       name: 'LinkedIn', 
       icon: Linkedin, 
       connected: false,
@@ -105,13 +105,13 @@ export function SocialAccountSettings() {
       let username = user.email || ''
       let display_name = user.user_metadata?.full_name || ''
       let avatar_url = user.user_metadata?.avatar_url || ''
-      if (platform === 'twitter' && user.user_metadata?.user_name) {
+      if (platform === 'x' && user.user_metadata?.user_name) {
         shouldInsert = true
         account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
         username = user.user_metadata?.user_name
         display_name = user.user_metadata?.full_name || ''
         avatar_url = user.user_metadata?.avatar_url || ''
-      } else if (platform === 'linkedin_oidc' && user.user_metadata?.provider === 'linkedin') {
+      } else if (platform === 'linkedin' && user.user_metadata?.provider === 'linkedin') {
         shouldInsert = true
         account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
         username = user.user_metadata?.user_name || user.user_metadata?.preferred_username || user.user_metadata?.full_name || user.email || ''
@@ -151,8 +151,8 @@ export function SocialAccountSettings() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         // Check for each platform
-        await ensureSocialAccount('twitter')
-        await ensureSocialAccount('linkedin_oidc')
+        await ensureSocialAccount('x')
+        await ensureSocialAccount('linkedin')
         await ensureSocialAccount('facebook')
       }
     }
@@ -167,10 +167,10 @@ export function SocialAccountSettings() {
           .from('accounts')
           .select('*')
           .eq('user_id', user.id)
-        const twitterAccount = accounts?.find((acc: SocialAccount) => acc.platform === 'twitter' && acc.is_active)
+        const twitterAccount = accounts?.find((acc: SocialAccount) => (acc.platform as string) === 'x' && acc.is_active)
         if (twitterAccount) {
           setPlatforms(prev => prev.map(platform => {
-            if (platform.id === 'twitter' && !platform.connected) {
+            if (platform.id === 'x' && !platform.connected) {
               return {
                 ...platform,
                 connected: true,
@@ -240,9 +240,9 @@ export function SocialAccountSettings() {
 
   const handleConnect = async (platformId: string) => {
     // Use Supabase OAuth for supported providers
-    if (["facebook", "twitter", "linkedin_oidc", "instagram", "tiktok"].includes(platformId)) {
-      // Always use 'linkedin_oidc' for LinkedIn
-      const provider = platformId === 'linkedin_oidc' ? 'linkedin_oidc' : platformId;
+    if (["facebook", "x", "linkedin", "instagram", "tiktok"].includes(platformId)) {
+      // Use 'twitter' as the provider for 'x' (Twitter/X)
+      const provider = platformId === 'x' ? 'twitter' : platformId;
       const redirectTo = window.location.origin + window.location.pathname; // Redirect back to this page
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: provider as any,
