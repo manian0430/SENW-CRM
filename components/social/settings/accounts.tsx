@@ -100,13 +100,13 @@ export function SocialAccountSettings() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data: existing } = await supabase
-        .from('social.accounts')
+        .from('accounts')
         .select('*')
         .eq('user_id', user.id)
         .eq('platform', platform)
         .maybeSingle()
       if (!existing) {
-        await supabase.from('social.accounts').insert({
+        await supabase.from('accounts').insert({
           user_id: user.id,
           platform,
           account_id: user.id, // fallback to user id
@@ -135,7 +135,7 @@ export function SocialAccountSettings() {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         const { data: accounts } = await supabase
-          .from('social.accounts')
+          .from('accounts')
           .select('*')
           .eq('user_id', user.id)
         const twitterAccount = accounts?.find((acc: SocialAccount) => acc.platform === 'twitter' && acc.is_active)
@@ -172,7 +172,7 @@ export function SocialAccountSettings() {
       if (!user) return
 
       const { data: accounts, error } = await supabase
-        .from('social.accounts')
+        .from('accounts')
         .select('*')
         .eq('user_id', user.id)
 
@@ -269,7 +269,7 @@ export function SocialAccountSettings() {
       if (!user) throw new Error('Not authenticated')
 
       const { error } = await supabase
-        .from('social.accounts')
+        .from('accounts')
         .delete()
         .eq('user_id', user.id)
         .eq('platform', platformId)

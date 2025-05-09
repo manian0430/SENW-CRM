@@ -100,7 +100,7 @@ export function ApiSettings() {
       if (!user) return
 
       const { data: accounts, error } = await supabase
-        .from('social.accounts')
+        .from('accounts')
         .select('platform, platform_specific_data')
         .eq('user_id', user.id)
 
