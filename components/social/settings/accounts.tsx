@@ -94,6 +94,42 @@ export function SocialAccountSettings() {
 
   useEffect(() => {
     loadConnectedAccounts()
+
+    // Ensure social.accounts row exists for Twitter, LinkedIn, and Facebook after OAuth login
+    const ensureSocialAccount = async (platform: string) => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: existing } = await supabase
+        .from('social.accounts')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('platform', platform)
+        .maybeSingle()
+      if (!existing) {
+        await supabase.from('social.accounts').insert({
+          user_id: user.id,
+          platform,
+          account_id: user.id, // fallback to user id
+          username: user.user_metadata?.user_name || user.user_metadata?.full_name || user.email || '',
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+      }
+    }
+
+    const checkAndEnsureAccounts = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Check for each platform
+        await ensureSocialAccount('twitter')
+        await ensureSocialAccount('linkedin')
+        await ensureSocialAccount('facebook')
+      }
+    }
+
+    checkAndEnsureAccounts()
+
     // Check if redirected from OAuth and update logs if Twitter is now connected
     const checkTwitterOAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
