@@ -329,107 +329,107 @@ export default function PropertiesPage() {
           <DialogTitle>Add New Property</DialogTitle>
         </DialogHeader>
         <div className="flex-1 overflow-y-auto pr-6 -mr-6">
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <label className="text-sm font-medium">Property Images</label>
-              <div className="grid gap-4">
-                {/* Image preview */}
-                {formData.images.length > 0 && (
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">Property Images</label>
+            <div className="grid gap-4">
+              {/* Image preview */}
+              {formData.images.length > 0 && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                    {formData.images.map((image, index) => (
-                      <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                        <img
-                          src={URL.createObjectURL(image)}
-                          alt={`Property image ${index + 1}`}
-                          className="object-cover w-full h-full"
-                        />
-                        <button
-                          onClick={() => removeImage(index)}
-                          className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white"
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Upload button */}
-                <label className="cursor-pointer">
-                  <div className="border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
-                    <div className="flex flex-col items-center gap-2">
-                      <UploadCloud className="h-8 w-8 text-gray-400" />
-                      <span className="text-sm text-gray-600">
-                        Click to upload images
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        PNG, JPG, WEBP up to 10MB each
-                      </span>
+                  {formData.images.map((image, index) => (
+                    <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+                      <img
+                        src={URL.createObjectURL(image)}
+                        alt={`Property image ${index + 1}`}
+                        className="object-cover w-full h-full"
+                      />
+                      <button
+                        onClick={() => removeImage(index)}
+                        className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
                     </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Upload button */}
+              <label className="cursor-pointer">
+                <div className="border-2 border-dashed rounded-lg p-4 hover:border-primary/50 transition-colors">
+                  <div className="flex flex-col items-center gap-2">
+                    <UploadCloud className="h-8 w-8 text-gray-400" />
+                    <span className="text-sm text-gray-600">
+                      Click to upload images
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      PNG, JPG, WEBP up to 10MB each
+                    </span>
                   </div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={handleImageUpload}
-                  />
-                </label>
-              </div>
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={handleImageUpload}
+                />
+              </label>
             </div>
+          </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="address">Address*</label>
-                <Input
-                  id="address"
-                  placeholder="Address"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange("address", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="city">City</label>
-                <Input
-                  id="city"
-                  placeholder="City"
-                  value={formData.city}
-                  onChange={(e) => handleInputChange("city", e.target.value)}
-                />
-              </div>
+            <div className="grid gap-2">
+              <label htmlFor="address">Address*</label>
+              <Input
+                id="address"
+                placeholder="Address"
+                value={formData.address}
+                onChange={(e) => handleInputChange("address", e.target.value)}
+              />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="state">State</label>
-                <Input
-                  id="state"
-                  placeholder="State"
-                  value={formData.state}
-                  onChange={(e) => handleInputChange("state", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="zipCode">Zip Code</label>
-                <Input
-                  id="zipCode"
-                  placeholder="Zip Code"
-                  value={formData.zipCode}
-                  onChange={(e) => handleInputChange("zipCode", e.target.value)}
-                />
-              </div>
+            <div className="grid gap-2">
+              <label htmlFor="city">City</label>
+              <Input
+                id="city"
+                placeholder="City"
+                value={formData.city}
+                onChange={(e) => handleInputChange("city", e.target.value)}
+              />
             </div>
+          </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="price">Price*</label>
-                <Input
-                  id="price"
-                  type="number"
-                  placeholder="Price"
-                  value={formData.price}
-                  onChange={(e) => handleInputChange("price", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="status">Status</label>
+            <div className="grid gap-2">
+              <label htmlFor="state">State</label>
+              <Input
+                id="state"
+                placeholder="State"
+                value={formData.state}
+                onChange={(e) => handleInputChange("state", e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="zipCode">Zip Code</label>
+              <Input
+                id="zipCode"
+                placeholder="Zip Code"
+                value={formData.zipCode}
+                onChange={(e) => handleInputChange("zipCode", e.target.value)}
+              />
+            </div>
+          </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid gap-2">
+              <label htmlFor="price">Price*</label>
+              <Input
+                id="price"
+                type="number"
+                placeholder="Price"
+                value={formData.price}
+                onChange={(e) => handleInputChange("price", e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="status">Status</label>
                 <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
                   <SelectTrigger id="status">
                     <SelectValue placeholder="Select status" />
@@ -446,60 +446,60 @@ export default function PropertiesPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="beds">Beds</label>
-                <Input
-                  id="beds"
-                  type="number"
-                  placeholder="Beds"
-                  value={formData.beds}
-                  onChange={(e) => handleInputChange("beds", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="baths">Baths</label>
-                <Input
-                  id="baths"
-                  type="number"
-                  placeholder="Baths"
-                  value={formData.baths}
-                  onChange={(e) => handleInputChange("baths", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="livingAreaSqft">Living Area (sqft)</label>
-                <Input
-                  id="livingAreaSqft"
-                  type="number"
-                  placeholder="Living Area"
-                  value={formData.livingAreaSqft}
-                  onChange={(e) => handleInputChange("livingAreaSqft", e.target.value)}
-                />
-              </div>
+            <div className="grid gap-2">
+              <label htmlFor="beds">Beds</label>
+              <Input
+                id="beds"
+                type="number"
+                placeholder="Beds"
+                value={formData.beds}
+                onChange={(e) => handleInputChange("beds", e.target.value)}
+              />
             </div>
+            <div className="grid gap-2">
+              <label htmlFor="baths">Baths</label>
+              <Input
+                id="baths"
+                type="number"
+                placeholder="Baths"
+                value={formData.baths}
+                onChange={(e) => handleInputChange("baths", e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="livingAreaSqft">Living Area (sqft)</label>
+              <Input
+                id="livingAreaSqft"
+                type="number"
+                placeholder="Living Area"
+                value={formData.livingAreaSqft}
+                onChange={(e) => handleInputChange("livingAreaSqft", e.target.value)}
+              />
+            </div>
+          </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="grid gap-2">
-                <label htmlFor="yearBuilt">Year Built</label>
-                <Input
-                  id="yearBuilt"
-                  type="number"
-                  placeholder="Year Built"
-                  value={formData.yearBuilt}
-                  onChange={(e) => handleInputChange("yearBuilt", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="parkingSpaces">Parking Spaces</label>
-                <Input
-                  id="parkingSpaces"
-                  type="number"
-                  placeholder="Parking Spaces"
-                  value={formData.parkingSpaces}
-                  onChange={(e) => handleInputChange("parkingSpaces", e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <label htmlFor="parkingType">Parking Type</label>
+            <div className="grid gap-2">
+              <label htmlFor="yearBuilt">Year Built</label>
+              <Input
+                id="yearBuilt"
+                type="number"
+                placeholder="Year Built"
+                value={formData.yearBuilt}
+                onChange={(e) => handleInputChange("yearBuilt", e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="parkingSpaces">Parking Spaces</label>
+              <Input
+                id="parkingSpaces"
+                type="number"
+                placeholder="Parking Spaces"
+                value={formData.parkingSpaces}
+                onChange={(e) => handleInputChange("parkingSpaces", e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label htmlFor="parkingType">Parking Type</label>
                 <Select value={formData.parkingType} onValueChange={(value) => handleInputChange("parkingType", value)}>
                   <SelectTrigger id="parkingType">
                     <SelectValue placeholder="Select parking type" />
@@ -515,22 +515,22 @@ export default function PropertiesPage() {
                     <SelectItem value="Tandem">Tandem</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-            </div>
-            <div className="grid gap-2">
-              <label htmlFor="propertyType">Property Type*</label>
-              <Select value={formData.universalLandUse} onValueChange={(value) => handleInputChange("universalLandUse", value)}>
-                <SelectTrigger id="propertyType">
-                  <SelectValue placeholder="Select property type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {uniquePropertyTypes.map(type => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
+          <div className="grid gap-2">
+            <label htmlFor="propertyType">Property Type*</label>
+            <Select value={formData.universalLandUse} onValueChange={(value) => handleInputChange("universalLandUse", value)}>
+              <SelectTrigger id="propertyType">
+                <SelectValue placeholder="Select property type" />
+              </SelectTrigger>
+              <SelectContent>
+                {uniquePropertyTypes.map(type => (
+                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
         </div>
         <DialogFooter className="mt-4 pt-4 border-t">
           <Button variant="outline" onClick={() => setAddPropertyOpen(false)}>

@@ -66,8 +66,8 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
         size="icon"
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-      >
-        <ChevronLeft className="h-4 w-4" />
+  >
+    <ChevronLeft className="h-4 w-4" />
         <span className="sr-only">Previous page</span>
       </Button>
 
@@ -97,7 +97,7 @@ export function Pagination({ currentPage, totalPages, onPageChange }: Pagination
         size="icon"
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-      >
+  >
         <ChevronRight className="h-4 w-4" />
         <span className="sr-only">Next page</span>
       </Button>

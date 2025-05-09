@@ -17,7 +17,6 @@ type Platform = {
   icon: any
   connected: boolean
   username?: string
-  authUrl: string
   status?: 'connected' | 'disconnected' | 'error'
   lastSync?: string
   logs?: {
@@ -36,11 +35,10 @@ export function SocialAccountSettings() {
   const { toast } = useToast()
   const [platforms, setPlatforms] = useState<Platform[]>([
     { 
-      id: 'x', 
+      id: 'twitter', 
       name: 'X (Twitter)', 
       icon: Twitter, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/twitter`,
       status: 'disconnected',
       logs: []
     },
@@ -49,7 +47,6 @@ export function SocialAccountSettings() {
       name: 'LinkedIn', 
       icon: Linkedin, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/linkedin`,
       status: 'disconnected',
       logs: []
     },
@@ -58,7 +55,6 @@ export function SocialAccountSettings() {
       name: 'Instagram', 
       icon: Instagram, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/instagram`,
       status: 'disconnected',
       logs: []
     },
@@ -67,7 +63,6 @@ export function SocialAccountSettings() {
       name: 'Facebook', 
       icon: Facebook, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/facebook`,
       status: 'disconnected',
       logs: []
     },
@@ -76,7 +71,6 @@ export function SocialAccountSettings() {
       name: 'TikTok', 
       icon: Share2, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/tiktok`,
       status: 'disconnected',
       logs: []
     },
@@ -85,7 +79,6 @@ export function SocialAccountSettings() {
       name: 'Bluesky', 
       icon: Share2, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/bluesky`,
       status: 'disconnected',
       logs: []
     },
@@ -94,7 +87,6 @@ export function SocialAccountSettings() {
       name: 'Truth Social', 
       icon: Share2, 
       connected: false,
-      authUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/truth`,
       status: 'disconnected',
       logs: []
     }
@@ -102,6 +94,40 @@ export function SocialAccountSettings() {
 
   useEffect(() => {
     loadConnectedAccounts()
+    // Check if redirected from OAuth and update logs if Twitter is now connected
+    const checkTwitterOAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: accounts } = await supabase
+          .from('social.accounts')
+          .select('*')
+          .eq('user_id', user.id)
+        const twitterAccount = accounts?.find((acc: SocialAccount) => acc.platform === 'twitter' && acc.is_active)
+        if (twitterAccount) {
+          setPlatforms(prev => prev.map(platform => {
+            if (platform.id === 'twitter' && !platform.connected) {
+              return {
+                ...platform,
+                connected: true,
+                username: twitterAccount.username,
+                status: 'connected',
+                lastSync: twitterAccount.last_sync_at,
+                logs: [
+                  ...(platform.logs || []),
+                  {
+                    timestamp: new Date().toISOString(),
+                    message: `Connected as @${twitterAccount.username}`,
+                    type: 'success'
+                  }
+                ]
+              }
+            }
+            return platform
+          }))
+        }
+      }
+    }
+    checkTwitterOAuth()
   }, [])
 
   const loadConnectedAccounts = async () => {
@@ -150,18 +176,14 @@ export function SocialAccountSettings() {
   const handleConnect = async (platformId: string) => {
     // Use Supabase OAuth for supported providers
     if (["facebook", "twitter", "linkedin", "linkedin_oidc", "instagram", "tiktok"].includes(platformId)) {
-      if (platformId === "facebook") {
-        await supabase.auth.signInWithOAuth({
-          provider: "facebook",
-          options: { scopes: "email,public_profile" }
-        });
-        return;
+      const redirectTo = window.location.origin + window.location.pathname; // Redirect back to this page
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: platformId as any,
+        options: { redirectTo }
+      });
+      if (data?.url) {
+        window.open(data.url, '_blank', 'width=600,height=700');
       }
-      if (platformId === "linkedin" || platformId === "linkedin_oidc") {
-        await supabase.auth.signInWithOAuth({ provider: "linkedin_oidc" });
-        return;
-      }
-      await supabase.auth.signInWithOAuth({ provider: platformId as any });
       return;
     }
     // Fallback: simulate connection for unsupported providers

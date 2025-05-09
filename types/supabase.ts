@@ -1,4 +1,4 @@
-export type SocialPlatform = 'x' | 'linkedin' | 'instagram' | 'facebook' | 'tiktok' | 'bluesky' | 'truth'
+export type SocialPlatform = 'twitter' | 'linkedin' | 'instagram' | 'facebook' | 'tiktok' | 'bluesky' | 'truth'
 
 export type SocialAccount = {
   id: string
