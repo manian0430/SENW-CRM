@@ -43,7 +43,7 @@ export function SocialAccountSettings() {
       logs: []
     },
     { 
-      id: 'linkedin', 
+      id: 'linkedin_oidc', 
       name: 'LinkedIn', 
       icon: Linkedin, 
       connected: false,
@@ -99,13 +99,32 @@ export function SocialAccountSettings() {
     const ensureSocialAccount = async (platform: string) => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      // Only proceed if the user logged in with this platform
-      if (user.app_metadata?.provider !== platform) return
-      // Extract provider-specific info
-      let account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
-      let username = user.user_metadata?.user_name || user.user_metadata?.preferred_username || user.user_metadata?.full_name || user.email || ''
+      // Check for provider-specific metadata
+      let shouldInsert = false
+      let account_id = user.id
+      let username = user.email || ''
       let display_name = user.user_metadata?.full_name || ''
       let avatar_url = user.user_metadata?.avatar_url || ''
+      if (platform === 'twitter' && user.user_metadata?.user_name) {
+        shouldInsert = true
+        account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
+        username = user.user_metadata?.user_name
+        display_name = user.user_metadata?.full_name || ''
+        avatar_url = user.user_metadata?.avatar_url || ''
+      } else if (platform === 'linkedin_oidc' && user.user_metadata?.provider === 'linkedin') {
+        shouldInsert = true
+        account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
+        username = user.user_metadata?.user_name || user.user_metadata?.preferred_username || user.user_metadata?.full_name || user.email || ''
+        display_name = user.user_metadata?.full_name || ''
+        avatar_url = user.user_metadata?.avatar_url || ''
+      } else if (platform === 'facebook' && user.user_metadata?.provider === 'facebook') {
+        shouldInsert = true
+        account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
+        username = user.user_metadata?.user_name || user.user_metadata?.preferred_username || user.user_metadata?.full_name || user.email || ''
+        display_name = user.user_metadata?.full_name || ''
+        avatar_url = user.user_metadata?.avatar_url || ''
+      }
+      if (!shouldInsert) return
       // Insert if not exists
       const { data: existing } = await supabase
         .from('accounts')
@@ -133,7 +152,7 @@ export function SocialAccountSettings() {
       if (user) {
         // Check for each platform
         await ensureSocialAccount('twitter')
-        await ensureSocialAccount('linkedin')
+        await ensureSocialAccount('linkedin_oidc')
         await ensureSocialAccount('facebook')
       }
     }
@@ -221,10 +240,12 @@ export function SocialAccountSettings() {
 
   const handleConnect = async (platformId: string) => {
     // Use Supabase OAuth for supported providers
-    if (["facebook", "twitter", "linkedin", "linkedin_oidc", "instagram", "tiktok"].includes(platformId)) {
+    if (["facebook", "twitter", "linkedin_oidc", "instagram", "tiktok"].includes(platformId)) {
+      // Always use 'linkedin_oidc' for LinkedIn
+      const provider = platformId === 'linkedin_oidc' ? 'linkedin_oidc' : platformId;
       const redirectTo = window.location.origin + window.location.pathname; // Redirect back to this page
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: platformId as any,
+        provider: provider as any,
         options: { redirectTo }
       });
       if (data?.url) {
