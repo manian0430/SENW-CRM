@@ -99,6 +99,14 @@ export function SocialAccountSettings() {
     const ensureSocialAccount = async (platform: string) => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
+      // Only proceed if the user logged in with this platform
+      if (user.app_metadata?.provider !== platform) return
+      // Extract provider-specific info
+      let account_id = user.user_metadata?.sub || user.user_metadata?.provider_id || user.id
+      let username = user.user_metadata?.user_name || user.user_metadata?.preferred_username || user.user_metadata?.full_name || user.email || ''
+      let display_name = user.user_metadata?.full_name || ''
+      let avatar_url = user.user_metadata?.avatar_url || ''
+      // Insert if not exists
       const { data: existing } = await supabase
         .from('accounts')
         .select('*')
@@ -109,8 +117,10 @@ export function SocialAccountSettings() {
         await supabase.from('accounts').insert({
           user_id: user.id,
           platform,
-          account_id: user.id, // fallback to user id
-          username: user.user_metadata?.user_name || user.user_metadata?.full_name || user.email || '',
+          account_id,
+          username,
+          display_name,
+          avatar_url,
           is_active: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
