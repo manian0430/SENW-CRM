@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { Search, MapPin, DollarSign, Plus, LayoutGrid, List, Loader2, UploadCloud, X } from "lucide-react"
 import Papa from 'papaparse'
+import { saveAs } from 'file-saver'
 import type { ParseResult } from 'papaparse'
 
 import { Button } from "@/components/ui/button"
@@ -369,6 +370,28 @@ export default function PropertiesPage() {
     }
   }
 
+  // Export for Skip Tracing handler
+  const handleExportSkipTracing = () => {
+    // Choose relevant fields for skip tracing
+    const exportFields = [
+      'apn', 'address', 'city', 'state', 'zip5', 'price', 'status',
+      'owner1FirstName', 'owner1LastName', 'owner1FullName',
+      'owner1EmailAddresses', 'owner1PhoneNumbers',
+      'universalLandUse'
+    ]
+    const data = filteredProperties.map((property) => {
+      const row: Record<string, any> = {}
+      exportFields.forEach(field => {
+        row[field] = (property as any)[field] || ''
+      })
+      return row
+    })
+    // @ts-ignore
+    const csv = Papa.unparse(data)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    saveAs(blob, 'skip_tracing_export.csv')
+  }
+
   // Update the AddPropertyDialogContent
   const AddPropertyDialogContent = (
     <Dialog open={addPropertyOpen} onOpenChange={setAddPropertyOpen}>
@@ -612,6 +635,12 @@ export default function PropertiesPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             <UploadCloud className="mr-2 h-4 w-4" /> Import CSV
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportSkipTracing}
+          >
+            <UploadCloud className="mr-2 h-4 w-4" /> Export for Skip Tracing
           </Button>
           <input
             ref={fileInputRef}
