@@ -99,7 +99,7 @@ export default function PropertiesPage() {
     active: number;
     outreach: number;
   }>(null)
-  const [skipTraceFilter, setSkipTraceFilter] = useState<'all' | 'dnc' | 'active' | 'outreach'>('all')
+  const [skipTraceFilter, setSkipTraceFilter] = useState<'dnc' | 'active' | 'outreach'>('outreach')
   const [pendingImportedProperties, setPendingImportedProperties] = useState<Property[] | null>(null)
   const [savingImport, setSavingImport] = useState(false)
   const [importConfirmed, setImportConfirmed] = useState(false)
@@ -262,77 +262,86 @@ export default function PropertiesPage() {
     const file = e.target.files?.[0]
     if (!file) return
     setImporting(true)
-    try {
-      Papa.parse(file as any, {
-        header: true,
-        complete: async (results: ParseResult<any>) => {
-          try {
-            const newProperties = transformCSVToProperties(results.data)
-            // Compute skip trace status counts
-            let dnc = 0, active = 0, outreach = 0
-            newProperties.forEach(p => {
-              const status = (p.skip_trace_status || '').toLowerCase()
-              if (status.includes('dnc')) dnc++
-              else if (status.includes('active')) active++
-              else outreach++
-            })
-            setImportSummary({
-              total: newProperties.length,
-              dnc,
-              active,
-              outreach
-            })
-            setPendingImportedProperties(newProperties)
-            setImportConfirmed(false)
-          } catch (err) {
-            toast({
-              title: "Error",
-              description: "Failed to import properties",
-              variant: "destructive"
-            })
-          } finally {
-            setImporting(false)
-          }
-        },
-        error: () => {
+    Papa.parse(file as any, {
+      header: true,
+      complete: async (results: ParseResult<any>) => {
+        try {
+          const newProperties = results.data
+          // Compute skip trace status counts
+          let dnc = 0, active = 0, outreach = 0
+          newProperties.forEach(p => {
+            const skipStatus = (p.skip_trace_status || '').toLowerCase().trim()
+            if (skipStatus === 'dnc') dnc++
+            else if (skipStatus === 'active' || skipStatus === 'active listing') active++
+            else outreach++
+          })
+          setImportSummary({
+            total: newProperties.length,
+            dnc,
+            active,
+            outreach
+          })
+          setPendingImportedProperties(newProperties)
+        } catch (err) {
           toast({
             title: "Error",
             description: "Failed to parse CSV file",
             variant: "destructive"
           })
+        } finally {
           setImporting(false)
         }
-      } as any)
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: "Failed to import properties",
-        variant: "destructive"
-      })
-      setImporting(false)
-    }
+      },
+      error: () => {
+        toast({
+          title: "Error",
+          description: "Failed to parse CSV file",
+          variant: "destructive"
+        })
+        setImporting(false)
+      }
+    } as any)
   }
 
   const handleConfirmImport = async () => {
     if (!pendingImportedProperties) return
     setSavingImport(true)
     try {
-      const res = await fetch('/api/import-properties', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(pendingImportedProperties),
-      })
-      if (!res.ok) throw new Error('Failed to save imported properties')
-      setImportConfirmed(true)
+      const { data, error } = await supabase
+        .from('properties')
+        .insert(pendingImportedProperties)
+      if (error) {
+        toast({
+          title: "Error",
+          description: "Failed to import properties: " + error.message,
+          variant: "destructive"
+        })
+      } else {
+        toast({
+          title: "Success",
+          description: `Imported ${data ? (data as any[]).length : 0} properties!`
+        })
+        fetchProperties()
+      }
       setImportSummary(null)
       setPendingImportedProperties(null)
-      await fetchProperties()
-      toast({ title: 'Import Confirmed', description: 'Properties have been added.' })
     } catch (err) {
-      toast({ title: 'Error', description: 'Failed to save imported properties', variant: 'destructive' })
+      toast({
+        title: "Error",
+        description: "Failed to import properties",
+        variant: "destructive"
+      })
     } finally {
       setSavingImport(false)
     }
+  }
+
+  const handleExportAllProperties = () => {
+    // Export all properties with all fields
+    // @ts-ignore
+    const csv = Papa.unparse(properties)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    saveAs(blob, 'all_properties_export.csv')
   }
 
   // Export for Skip Tracing handler
@@ -711,10 +720,9 @@ export default function PropertiesPage() {
 
       {/* Quick Skip Trace Filter Bar */}
       <div className="flex gap-2 my-4">
-        <Button variant={skipTraceFilter === 'all' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('all')}>All</Button>
+        <Button variant={skipTraceFilter === 'outreach' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('outreach')}>Ready for Outreach</Button>
         <Button variant={skipTraceFilter === 'dnc' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('dnc')}>DNC</Button>
         <Button variant={skipTraceFilter === 'active' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('active')}>Active Listing</Button>
-        <Button variant={skipTraceFilter === 'outreach' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('outreach')}>Ready for Outreach</Button>
       </div>
 
       {/* View Toggle */}
@@ -808,9 +816,6 @@ export default function PropertiesPage() {
         />
       )}
 
-      {/* Add this near the end of the component */}
-      {AddPropertyDialogContent}
-
       {/* Import Summary Modal */}
       {importSummary && (
         <Dialog open={!!importSummary} onOpenChange={() => setImportSummary(null)}>
@@ -837,6 +842,9 @@ export default function PropertiesPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Add this near the end of the component */}
+      {AddPropertyDialogContent}
     </div>
   )
 }
