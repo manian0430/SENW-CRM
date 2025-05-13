@@ -169,6 +169,9 @@ export interface Property {
   owner2FullName: string;
   owner2EmailAddresses: string;
   owner2PhoneNumbers: string;
+
+  // Add skip trace status field
+  skipTraceStatus?: string;
 }
 
 interface CSVProperty {
@@ -359,7 +362,10 @@ export function transformCSVToProperties(csvData: any[]): Property[] {
         owner2LastName: record['Owner 2 Last Name'] || '',
         owner2FullName: record['Owner 2 Full Name'] || '',
         owner2EmailAddresses: record['Owner 2 Email Addresses'] || '',
-        owner2PhoneNumbers: record['Owner 2 Phone Numbers'] || ''
+        owner2PhoneNumbers: record['Owner 2 Phone Numbers'] || '',
+
+        // Map skip trace status from possible columns
+        skipTraceStatus: record['Skip Trace Status'] || record['DNC Status'] || record['Active Listing Status'] || '',
       };
 
       return property;

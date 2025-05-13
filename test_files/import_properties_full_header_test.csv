@@ -1,0 +1,4 @@
+APN/PIN/Tax 1,Property Address,City,State,ZIP 5,List Price,Status,Beds,Baths,Living Area SQFT,Year Built,Parking spaces,Parking Type,Universal Land Use,Owner 1 First Name,Owner 1 Last Name,Owner 1 Full Name,Owner 1 Email Addresses,Owner 1 Phone Numbers,Skip Trace Status
+123-456-789,123 Main St,Phoenix,AZ,85001,450000,Active,3,2,1800,1990,2,Garage,Single Family,John,Smith,John Smith,john.smith@email.com,555-123-4567;555-987-6543 DNC,DNC
+987-654-321,456 Oak Ave,Mesa,AZ,85204,375000,Active,4,2.5,2200,1985,2,Carport,Single Family,Tom,Jones,Tom Jones,tom.jones@email.com,555-111-2222,Active Listing
+345-678-912,789 Pine St,Scottsdale,AZ,85251,299000,Active,2,2,1200,2000,1,Covered,Condominium,Sarah,Miller,Sarah Miller,sarah.miller@email.com,555-777-8888;555-999-0000,Ready for Outreach 

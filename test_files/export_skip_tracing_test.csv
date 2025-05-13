@@ -1,0 +1,4 @@
+apn,address,city,state,zip5,price,status,owner1FirstName,owner1LastName,owner1FullName,owner1EmailAddresses,owner1PhoneNumbers,universalLandUse
+12345,123 Main St,Springfield,IL,62704,250000,Active,John,Doe,John Doe,john@example.com,555-1234,Single Family
+23456,456 Oak Ave,Chicago,IL,60616,350000,Pending,Jane,Smith,Jane Smith,jane@example.com,555-5678,Multi Family
+34567,789 Pine Rd,Peoria,IL,61614,450000,Sold,Bob,Brown,Bob Brown,bob@example.com,555-9012,Single Family 

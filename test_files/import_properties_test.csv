@@ -1,0 +1,4 @@
+APN/PIN/Tax 1,Property Address,List Price,Skip Trace Status,Beds,Baths,Living Area SQFT,Year Built,Parking spaces,Parking Type,Universal Land Use,Owner 1 First Name,Owner 1 Last Name,Owner 1 Full Name,Owner 1 Email Addresses,Owner 1 Phone Numbers
+12345,123 Main St,250000,DNC,3,2,1200,1990,1,Garage,Single Family,John,Doe,John Doe,john@example.com,555-1234
+23456,456 Oak Ave,350000,Active Listing,4,3,1800,2005,2,Driveway,Multi Family,Jane,Smith,Jane Smith,jane@example.com,555-5678
+34567,789 Pine Rd,450000,Ready for Outreach,5,4,2200,2015,2,Garage,Single Family,Bob,Brown,Bob Brown,bob@example.com,555-9012 

@@ -5,7 +5,6 @@ import { Search, MapPin, DollarSign, Plus, LayoutGrid, List, Loader2, UploadClou
 import Papa from 'papaparse'
 import { saveAs } from 'file-saver'
 import type { ParseResult } from 'papaparse'
-
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -15,31 +14,57 @@ import { PageHeader } from "@/components/ui/page-header"
 import { PropertyCard } from "@/components/ui/property-card"
 import { PropertyListItem } from "@/components/ui/property-list-item"
 import { PropertyDetailsDialog } from "@/components/ui/property-details-dialog"
-import { transformCSVToProperties, type Property } from "@/lib/utils/property-data"
 import { toast } from "@/components/ui/use-toast"
 import { useProperties } from "@/contexts/property-context"
 import { Pagination } from "@/components/ui/pagination"
+import type { Property } from "@/types/supabase"
+import { createBrowserClient } from '@supabase/ssr'
 
 // Add this interface for the form
 interface AddPropertyForm {
-  address: string
+  property_address: string
   city: string
   state: string
-  zipCode: string
-  price: string
+  zip_5: string
+  list_price: string
   status: string
   beds: string
   baths: string
-  livingAreaSqft: string
-  yearBuilt: string
-  parkingSpaces: string
-  parkingType: string
-  universalLandUse: string
+  living_area_sqft: string
+  year_built: string
+  parking_spaces: string
+  parking_type: string
+  universal_land_use: string
   images: File[]
 }
 
+// Add this function at the top of the file after imports
+function transformCSVToProperties(csvData: any[]): Property[] {
+  return csvData.map((record: any) => {
+    const property: Property = {
+      id: Math.random().toString(36).substr(2, 9), // Generate a random ID
+      property_address: record['Property Address'] || '',
+      city: record['City'] || '',
+      state: record['State'] || '',
+      zip_5: record['ZIP 5'] || '',
+      list_price: Number(record['List Price']) || undefined,
+      status: record['Status'] || 'Active',
+      beds: Number(record['Beds']) || undefined,
+      baths: Number(record['Baths']) || undefined,
+      living_area_sqft: Number(record['Living Area SQFT']) || undefined,
+      year_built: Number(record['Year Built']) || undefined,
+      parking_spaces: Number(record['Parking spaces']) || undefined,
+      parking_type: record['Parking Type'] || undefined,
+      universal_land_use: record['Universal Land Use'] || undefined,
+      images: [],
+      skip_trace_status: record['Skip Trace Status'] || undefined
+    }
+    return property
+  })
+}
+
 export default function PropertiesPage() {
-  const { properties, loading, error, fetchProperties } = useProperties()
+  const { properties, loading, error, fetchProperties, addProperty } = useProperties()
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
@@ -49,29 +74,44 @@ export default function PropertiesPage() {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [addPropertyOpen, setAddPropertyOpen] = useState(false)
   const [formData, setFormData] = useState<AddPropertyForm>({
-    address: "",
+    property_address: "",
     city: "",
     state: "",
-    zipCode: "",
-    price: "",
+    zip_5: "",
+    list_price: "",
     status: "",
     beds: "",
     baths: "",
-    livingAreaSqft: "",
-    yearBuilt: "",
-    parkingSpaces: "",
-    parkingType: "",
-    universalLandUse: "",
+    living_area_sqft: "",
+    year_built: "",
+    parking_spaces: "",
+    parking_type: "",
+    universal_land_use: "",
     images: [],
   })
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 9 // Number of items to show per page
   const [importing, setImporting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const [importSummary, setImportSummary] = useState<null | {
+    total: number;
+    dnc: number;
+    active: number;
+    outreach: number;
+  }>(null)
+  const [skipTraceFilter, setSkipTraceFilter] = useState<'all' | 'dnc' | 'active' | 'outreach'>('all')
+  const [pendingImportedProperties, setPendingImportedProperties] = useState<Property[] | null>(null)
+  const [savingImport, setSavingImport] = useState(false)
+  const [importConfirmed, setImportConfirmed] = useState(false)
+
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   // Add this new code to get unique property types
   const uniquePropertyTypes = [...new Set(properties
-    .map(property => property.universalLandUse)
+    .map(property => property.universal_land_use)
     .filter(type => type) // Remove null/undefined values
   )].sort()
 
@@ -80,14 +120,18 @@ export default function PropertiesPage() {
     const priceMax = maxPrice ? Number.parseInt(maxPrice) : Infinity
     const locationFilter = location.trim()
 
-    const matchesMinPrice = !minPrice || (property.price >= priceMin)
-    const matchesMaxPrice = !maxPrice || (property.price <= priceMax)
+    const matchesMinPrice = !minPrice || (property.list_price && property.list_price >= priceMin)
+    const matchesMaxPrice = !maxPrice || (property.list_price && property.list_price <= priceMax)
     const matchesLocation = locationFilter === "all" || 
       property.state === locationFilter
     const matchesType = !propertyType || propertyType === "all" || 
-      (property.universalLandUse && property.universalLandUse === propertyType)
+      (property.universal_land_use && property.universal_land_use === propertyType)
+    let matchesSkipTrace = true
+    if (skipTraceFilter === 'dnc') matchesSkipTrace = (property.skip_trace_status || '').toLowerCase().includes('dnc')
+    else if (skipTraceFilter === 'active') matchesSkipTrace = (property.skip_trace_status || '').toLowerCase().includes('active')
+    else if (skipTraceFilter === 'outreach') matchesSkipTrace = !((property.skip_trace_status || '').toLowerCase().includes('dnc') || (property.skip_trace_status || '').toLowerCase().includes('active'))
 
-    return matchesMinPrice && matchesMaxPrice && matchesLocation && matchesType
+    return matchesMinPrice && matchesMaxPrice && matchesLocation && matchesType && matchesSkipTrace
   })
 
   // Calculate pagination
@@ -101,8 +145,8 @@ export default function PropertiesPage() {
     setCurrentPage(1)
   }, [minPrice, maxPrice, location, propertyType])
 
-  const handleViewDetails = (apn: string) => {
-    const property = properties.find(p => p.apn === apn)
+  const handleViewDetails = (id: string) => {
+    const property = properties.find(p => p.id === id)
     if (property) {
       setSelectedProperty(property)
       setDetailsOpen(true)
@@ -113,7 +157,7 @@ export default function PropertiesPage() {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newImages = Array.from(e.target.files)
       setFormData(prev => ({
@@ -132,7 +176,7 @@ export default function PropertiesPage() {
 
   const handleAddProperty = async () => {
     // Basic validation
-    if (!formData.address || !formData.price || !formData.universalLandUse) {
+    if (!formData.property_address || !formData.list_price || !formData.universal_land_use) {
       toast({
         title: "Error",
         description: "Please fill in all required fields",
@@ -141,187 +185,77 @@ export default function PropertiesPage() {
       return
     }
 
-    // Upload images and get URLs
-    const imageUrls: string[] = []
-    for (const image of formData.images) {
-      // In a real application, you would upload these to your storage service
-      // For now, we'll create object URLs as a placeholder
-      const imageUrl = URL.createObjectURL(image)
-      imageUrls.push(imageUrl)
-    }
+    try {
+      // Upload images to Supabase Storage
+      const imageUrls: string[] = []
+      for (const image of formData.images) {
+        const fileExt = image.name.split('.').pop()
+        const fileName = `${Math.random()}.${fileExt}`
+        const { data, error } = await supabase.storage
+          .from('property-images')
+          .upload(`properties/${fileName}`, image)
 
-    // Create new property object
-    const newProperty: Property = {
-      apn: Date.now().toString(), // Generate a unique ID
-      address: formData.address,
-      city: formData.city,
-      state: formData.state,
-      zip5: formData.zipCode,
-      zip4: "",
-      price: Number(formData.price),
-      status: formData.status || "Active",
-      beds: Number(formData.beds) || 0,
-      baths: Number(formData.baths) || 0,
-      livingAreaSqft: Number(formData.livingAreaSqft) || 0,
-      yearBuilt: Number(formData.yearBuilt) || 0,
-      parkingSpaces: Number(formData.parkingSpaces) || 0,
-      parkingType: formData.parkingType || "",
-      universalLandUse: formData.universalLandUse,
-      // Add other required fields with default values
-      apn2: "",
-      apn3: "",
-      fips: "",
-      censusTract: "",
-      houseNumber: "",
-      preDirection: "",
-      street: "",
-      streetSuffix: "",
-      postDirection: "",
-      unitType: "",
-      unitNumber: "",
-      mailingAddress: "",
-      mailingHouseNumber: "",
-      mailingPreDirection: "",
-      mailingStreet: "",
-      mailingStreetSuffix: "",
-      mailingPostDirection: "",
-      mailingUnitType: "",
-      mailingUnitNumber: "",
-      mailingCity: "",
-      mailingState: "",
-      mailingZip5: "",
-      mailingZip4: "",
-      mlsId: "",
-      listingType: "",
-      daysOnMarket: 0,
-      contractStatusChangeDate: "",
-      townshipName: "",
-      subdivisionCode: "",
-      subdivision: "",
-      currentYearTax: 0,
-      taxAmount: 0,
-      taxRateCodeArea: "",
-      currentYearAssessment: 0,
-      totalAssessedValue: 0,
-      assessedLand: 0,
-      assessedImprovement: 0,
-      totalMarketValue: 0,
-      marketValueLand: 0,
-      marketValueImprovement: 0,
-      estimatedValue: 0,
-      absenteeStatus: "",
-      exemptionVeterans: false,
-      exemptionDisabled: false,
-      exemptionSenior: false,
-      exemptionWidow: false,
-      exemptionHomestead: false,
-      blockNumber: "",
-      lotNumber: "",
-      sectionNumber: "",
-      countyUseCode: "",
-      stateLandUseCode: "",
-      zoning: "",
-      platMapReference: "",
-      lotAcres: 0,
-      lotSqft: 0,
-      newConstruction: "",
-      totalBuildingArea: 0,
-      grossAreaSqft: 0,
-      basementSqft: 0,
-      garageSqft: 0,
-      basement: "",
-      flooringCover: "",
-      stories: 0,
-      style: "",
-      airConditioning: "",
-      heatType: "",
-      fireplaceIndicator: "",
-      constructionType: "",
-      exteriorWall: "",
-      roofMaterialType: "",
-      porchType: "",
-      hasPool: "No",
-      totalUnits: 1,
-      sellScore: "",
-      distressedIndicator: "",
-      distressedRecordingDate: "",
-      distressedCaseNumber: "",
-      auctionDate: "",
-      defaultDate: "",
-      recordingDate: "",
-      documentType: "",
-      salesPrice: 0,
-      equity: 0,
-      equityPercentage: 0,
-      numberOfMortgages: 0,
-      mortgageLoanBalance: 0,
-      mortgage1LenderName: "",
-      mortgage1LoanType: "",
-      mortgage1Amount: 0,
-      mortgage1LoanDate: "",
-      mortgage1Rate: "",
-      mortgage1Age: "",
-      mortgage2LenderName: "",
-      mortgage2LoanType: "",
-      mortgage2Amount: 0,
-      mortgage2LoanDate: "",
-      mortgage2Rate: "",
-      mortgage2Age: "",
-      mortgage3LenderName: "",
-      mortgage3LoanType: "",
-      mortgage3Amount: 0,
-      mortgage3LoanDate: "",
-      mortgage3Rate: "",
-      mortgage3Age: "",
-      mortgage4LenderName: "",
-      mortgage4LoanType: "",
-      mortgage4Amount: 0,
-      mortgage4LoanDate: "",
-      mortgage4Rate: "",
-      mortgage4Age: "",
-      owner1FirstName: "",
-      owner1MiddleName: "",
-      owner1LastName: "",
-      owner1FullName: "",
-      owner1EmailAddresses: "",
-      owner1PhoneNumbers: "",
-      owner2FirstName: "",
-      owner2MiddleName: "",
-      owner2LastName: "",
-      owner2FullName: "",
-      owner2EmailAddresses: "",
-      owner2PhoneNumbers: "",
-      images: imageUrls,
-    }
+        if (error) throw error
+        if (data) {
+          const { data: { publicUrl } } = supabase.storage
+            .from('property-images')
+            .getPublicUrl(`properties/${fileName}`)
+          imageUrls.push(publicUrl)
+        }
+      }
 
-    // Add to properties array (Now we need to update the context)
-    // setProperties(prev => [...prev, newProperty])
-    // Consider how to update context - for now, refetching is simplest
-    await fetchProperties()
-    
-    // Reset form
-    setFormData({
-      address: "",
-      city: "",
-      state: "",
-      zipCode: "",
-      price: "",
-      status: "",
-      beds: "",
-      baths: "",
-      livingAreaSqft: "",
-      yearBuilt: "",
-      parkingSpaces: "",
-      parkingType: "",
-      universalLandUse: "",
-      images: [],
-    })
-    setAddPropertyOpen(false)
-    
-    toast({
-      title: "Success",
-      description: "Property added successfully"
-    })
+      // Create new property object
+      const newProperty = {
+        property_address: formData.property_address,
+        city: formData.city,
+        state: formData.state,
+        zip_5: formData.zip_5,
+        list_price: Number(formData.list_price),
+        status: formData.status || "Active",
+        beds: Number(formData.beds) || undefined,
+        baths: Number(formData.baths) || undefined,
+        living_area_sqft: Number(formData.living_area_sqft) || undefined,
+        year_built: Number(formData.year_built) || undefined,
+        parking_spaces: Number(formData.parking_spaces) || undefined,
+        parking_type: formData.parking_type || undefined,
+        universal_land_use: formData.universal_land_use,
+        images: imageUrls
+      }
+
+      // Add the property using the context function
+      const result = await addProperty(newProperty)
+      
+      if (result) {
+        toast({
+          title: "Success",
+          description: "Property added successfully",
+        })
+        setAddPropertyOpen(false)
+        setFormData({
+          property_address: "",
+          city: "",
+          state: "",
+          zip_5: "",
+          list_price: "",
+          status: "",
+          beds: "",
+          baths: "",
+          living_area_sqft: "",
+          year_built: "",
+          parking_spaces: "",
+          parking_type: "",
+          universal_land_use: "",
+          images: [],
+        })
+      }
+    } catch (err) {
+      console.error('Error adding property:', err)
+      toast({
+        title: "Error",
+        description: "Failed to add property. Please try again.",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleImportCSV = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -334,13 +268,22 @@ export default function PropertiesPage() {
         complete: async (results: ParseResult<any>) => {
           try {
             const newProperties = transformCSVToProperties(results.data)
-            // Here you would update your backend or properties.csv file
-            // For now, just show a toast and refresh
-            await fetchProperties()
-            toast({
-              title: "Success",
-              description: `${newProperties.length} properties imported successfully!`
+            // Compute skip trace status counts
+            let dnc = 0, active = 0, outreach = 0
+            newProperties.forEach(p => {
+              const status = (p.skip_trace_status || '').toLowerCase()
+              if (status.includes('dnc')) dnc++
+              else if (status.includes('active')) active++
+              else outreach++
             })
+            setImportSummary({
+              total: newProperties.length,
+              dnc,
+              active,
+              outreach
+            })
+            setPendingImportedProperties(newProperties)
+            setImportConfirmed(false)
           } catch (err) {
             toast({
               title: "Error",
@@ -367,6 +310,28 @@ export default function PropertiesPage() {
         variant: "destructive"
       })
       setImporting(false)
+    }
+  }
+
+  const handleConfirmImport = async () => {
+    if (!pendingImportedProperties) return
+    setSavingImport(true)
+    try {
+      const res = await fetch('/api/import-properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(pendingImportedProperties),
+      })
+      if (!res.ok) throw new Error('Failed to save imported properties')
+      setImportConfirmed(true)
+      setImportSummary(null)
+      setPendingImportedProperties(null)
+      await fetchProperties()
+      toast({ title: 'Import Confirmed', description: 'Properties have been added.' })
+    } catch (err) {
+      toast({ title: 'Error', description: 'Failed to save imported properties', variant: 'destructive' })
+    } finally {
+      setSavingImport(false)
     }
   }
 
@@ -450,12 +415,12 @@ export default function PropertiesPage() {
           </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <label htmlFor="address">Address*</label>
+              <label htmlFor="property_address">Address*</label>
               <Input
-                id="address"
+                id="property_address"
                 placeholder="Address"
-                value={formData.address}
-                onChange={(e) => handleInputChange("address", e.target.value)}
+                value={formData.property_address}
+                onChange={(e) => handleInputChange("property_address", e.target.value)}
               />
             </div>
             <div className="grid gap-2">
@@ -479,24 +444,24 @@ export default function PropertiesPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="zipCode">Zip Code</label>
+              <label htmlFor="zip_5">Zip Code</label>
               <Input
-                id="zipCode"
+                id="zip_5"
                 placeholder="Zip Code"
-                value={formData.zipCode}
-                onChange={(e) => handleInputChange("zipCode", e.target.value)}
+                value={formData.zip_5}
+                onChange={(e) => handleInputChange("zip_5", e.target.value)}
               />
             </div>
           </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <label htmlFor="price">Price*</label>
+              <label htmlFor="list_price">Price*</label>
               <Input
-                id="price"
+                id="list_price"
                 type="number"
                 placeholder="Price"
-                value={formData.price}
-                onChange={(e) => handleInputChange("price", e.target.value)}
+                value={formData.list_price}
+                onChange={(e) => handleInputChange("list_price", e.target.value)}
               />
             </div>
             <div className="grid gap-2">
@@ -538,41 +503,41 @@ export default function PropertiesPage() {
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="livingAreaSqft">Living Area (sqft)</label>
+              <label htmlFor="living_area_sqft">Living Area (sqft)</label>
               <Input
-                id="livingAreaSqft"
+                id="living_area_sqft"
                 type="number"
                 placeholder="Living Area"
-                value={formData.livingAreaSqft}
-                onChange={(e) => handleInputChange("livingAreaSqft", e.target.value)}
+                value={formData.living_area_sqft}
+                onChange={(e) => handleInputChange("living_area_sqft", e.target.value)}
               />
             </div>
           </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="grid gap-2">
-              <label htmlFor="yearBuilt">Year Built</label>
+              <label htmlFor="year_built">Year Built</label>
               <Input
-                id="yearBuilt"
+                id="year_built"
                 type="number"
                 placeholder="Year Built"
-                value={formData.yearBuilt}
-                onChange={(e) => handleInputChange("yearBuilt", e.target.value)}
+                value={formData.year_built}
+                onChange={(e) => handleInputChange("year_built", e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="parkingSpaces">Parking Spaces</label>
+              <label htmlFor="parking_spaces">Parking Spaces</label>
               <Input
-                id="parkingSpaces"
+                id="parking_spaces"
                 type="number"
                 placeholder="Parking Spaces"
-                value={formData.parkingSpaces}
-                onChange={(e) => handleInputChange("parkingSpaces", e.target.value)}
+                value={formData.parking_spaces}
+                onChange={(e) => handleInputChange("parking_spaces", e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <label htmlFor="parkingType">Parking Type</label>
-                <Select value={formData.parkingType} onValueChange={(value) => handleInputChange("parkingType", value)}>
-                  <SelectTrigger id="parkingType">
+              <label htmlFor="parking_type">Parking Type</label>
+                <Select value={formData.parking_type} onValueChange={(value) => handleInputChange("parking_type", value)}>
+                  <SelectTrigger id="parking_type">
                     <SelectValue placeholder="Select parking type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -590,13 +555,13 @@ export default function PropertiesPage() {
           </div>
           <div className="grid gap-2">
             <label htmlFor="propertyType">Property Type*</label>
-            <Select value={formData.universalLandUse} onValueChange={(value) => handleInputChange("universalLandUse", value)}>
+            <Select value={formData.universal_land_use} onValueChange={(value) => handleInputChange("universal_land_use", value)}>
               <SelectTrigger id="propertyType">
                 <SelectValue placeholder="Select property type" />
               </SelectTrigger>
               <SelectContent>
                 {uniquePropertyTypes.map(type => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                  <SelectItem key={type || ''} value={type || ''}>{type || ''}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -639,6 +604,7 @@ export default function PropertiesPage() {
           <Button
             variant="outline"
             onClick={handleExportSkipTracing}
+            disabled={!importConfirmed && !!pendingImportedProperties}
           >
             <UploadCloud className="mr-2 h-4 w-4" /> Export for Skip Tracing
           </Button>
@@ -719,9 +685,7 @@ export default function PropertiesPage() {
                 <SelectContent>
                   <SelectItem value="all">All Types</SelectItem>
                   {uniquePropertyTypes.map(type => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
+                    <SelectItem key={type || ''} value={type || ''}>{type || ''}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -744,6 +708,14 @@ export default function PropertiesPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Quick Skip Trace Filter Bar */}
+      <div className="flex gap-2 my-4">
+        <Button variant={skipTraceFilter === 'all' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('all')}>All</Button>
+        <Button variant={skipTraceFilter === 'dnc' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('dnc')}>DNC</Button>
+        <Button variant={skipTraceFilter === 'active' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('active')}>Active Listing</Button>
+        <Button variant={skipTraceFilter === 'outreach' ? 'default' : 'outline'} onClick={() => setSkipTraceFilter('outreach')}>Ready for Outreach</Button>
+      </div>
 
       {/* View Toggle */}
       <div className="flex justify-end gap-2">
@@ -786,9 +758,10 @@ export default function PropertiesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentProperties.map((property) => (
               <PropertyCard
-                key={property.apn}
+                key={property.id}
                 property={property}
                 onViewDetails={handleViewDetails}
+                skipTraceStatus={property.skip_trace_status}
               />
             ))}
           </div>
@@ -797,9 +770,10 @@ export default function PropertiesPage() {
             <CardContent className="p-0 divide-y">
               {currentProperties.map((property) => (
                 <PropertyListItem
-                  key={property.apn}
+                  key={property.id}
                   property={property}
                   onViewDetails={handleViewDetails}
+                  skipTraceStatus={property.skip_trace_status}
                 />
               ))}
             </CardContent>
@@ -836,6 +810,33 @@ export default function PropertiesPage() {
 
       {/* Add this near the end of the component */}
       {AddPropertyDialogContent}
+
+      {/* Import Summary Modal */}
+      {importSummary && (
+        <Dialog open={!!importSummary} onOpenChange={() => setImportSummary(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Import Summary</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2">
+              <div>Total properties imported: <b>{importSummary.total}</b></div>
+              <div>Marked DNC: <b>{importSummary.dnc}</b></div>
+              <div>Active Listings: <b>{importSummary.active}</b></div>
+              <div>Ready for Outreach: <b>{importSummary.outreach}</b></div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setImportSummary(null)} disabled={savingImport}>Cancel</Button>
+              <Button onClick={handleConfirmImport} disabled={savingImport}>
+                {savingImport ? (
+                  <span className="flex items-center gap-2"><Loader2 className="animate-spin h-4 w-4" /> Saving...</span>
+                ) : (
+                  'Confirm & Save'
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }
