@@ -1,14 +1,14 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Search, MapPin, DollarSign, Plus, LayoutGrid, List, Loader2, UploadCloud, X } from "lucide-react"
+import { Search, MapPin, DollarSign, Plus, LayoutGrid, List, Loader2, UploadCloud, X, Home, Bed, Square, Calendar, Tag, Info, Bath } from "lucide-react"
 import Papa from 'papaparse'
 import { saveAs } from 'file-saver'
 import type { ParseResult } from 'papaparse'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { PageHeader } from "@/components/ui/page-header"
 import { PropertyCard } from "@/components/ui/property-card"
@@ -19,6 +19,7 @@ import { useProperties } from "@/contexts/property-context"
 import { Pagination } from "@/components/ui/pagination"
 import type { Property } from "@/types/supabase"
 import { createBrowserClient } from '@supabase/ssr'
+import { Checkbox } from "@/components/ui/checkbox"
 
 // Add this interface for the form
 interface AddPropertyForm {
@@ -103,6 +104,7 @@ export default function PropertiesPage() {
   const [pendingImportedProperties, setPendingImportedProperties] = useState<Property[] | null>(null)
   const [savingImport, setSavingImport] = useState(false)
   const [importConfirmed, setImportConfirmed] = useState(false)
+  const [selectedProperties, setSelectedProperties] = useState<string[]>([])
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -364,6 +366,25 @@ export default function PropertiesPage() {
     const csv = Papa.unparse(data)
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     saveAs(blob, 'skip_tracing_export.csv')
+  }
+
+  const handleSelectProperty = (id: string, checked: boolean) => {
+    setSelectedProperties(prev => checked ? [...prev, id] : prev.filter(pid => pid !== id))
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedProperties(properties.map(p => p.id))
+    } else {
+      setSelectedProperties([])
+    }
+  }
+
+  const handleSendToAutomation = () => {
+    // Example: navigate to Automation with selected IDs (replace with your routing/state logic)
+    // router.push(`/automation?propertyIds=${selectedProperties.join(',')}`)
+    // Or set a global state/context
+    alert(`Send to Automation: ${selectedProperties.join(', ')}`)
   }
 
   // Update the AddPropertyDialogContent
@@ -760,32 +781,151 @@ export default function PropertiesPage() {
         </Card>
       )}
 
+      {/* Bulk Action Bar */}
+      {selectedProperties.length > 0 && (
+        <div className="flex items-center gap-4 bg-yellow-50 border border-yellow-200 rounded px-4 py-2 mb-2">
+          <span className="font-medium">{selectedProperties.length} selected</span>
+          <Button onClick={handleSendToAutomation} variant="default">Send to Automation</Button>
+          <Button onClick={() => setSelectedProperties([])} variant="ghost">Clear</Button>
+        </div>
+      )}
+
       {/* Property Display */}
       {!loading && !error && (
         viewMode === 'grid' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {currentProperties.map((property) => (
-              <PropertyCard
+              <Card
                 key={property.id}
-                property={property}
-                onViewDetails={handleViewDetails}
-                skipTraceStatus={property.skip_trace_status}
-              />
+                className={`relative flex flex-col transition-shadow ${
+                  selectedProperties.includes(property.id)
+                    ? "ring-2 ring-primary border-primary"
+                    : "hover:shadow-lg"
+                }`}
+              >
+                {/* Image Placeholder or Actual Image */}
+                <div className="relative w-full h-48 bg-gray-100 rounded-t-lg overflow-hidden flex items-center justify-center">
+                   {/* Checkbox overlay */}
+                  <div className="absolute top-2 right-2 z-10 bg-white rounded-md p-1 shadow">
+                    <Checkbox
+                      checked={selectedProperties.includes(property.id)}
+                      onCheckedChange={checked => handleSelectProperty(property.id, !!checked)}
+                      aria-label={`Select property ${property.id}`}
+                    />
+                  </div>
+                  {property.images && property.images.length > 0 ? (
+                    <img
+                      src={property.images[0]}
+                      alt={`Image of ${property.property_address}`}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center w-full h-full text-gray-400">
+                      <Home className="h-12 w-12" /> {/* Using imported Home icon */}
+                      <span className="mt-2 text-sm">No Image Available</span>
+                    </div>
+                  )}
+                </div>
+                
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg font-semibold leading-tight"> {/* Added leading-tight */}
+                    {property.property_address}
+                  </CardTitle>
+                  <div className="text-sm text-muted-foreground leading-tight"> {/* Added leading-tight */}
+                    {property.city}, {property.state} {property.zip_5}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-grow space-y-2 text-sm text-muted-foreground"> {/* Increased space-y */}
+                  <div className="flex items-center gap-2">
+                    <Bed className="h-4 w-4" /> {/* Using imported Bed icon */}
+                    <span>{property.beds} beds</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Bath className="h-4 w-4" /> {/* Using imported Bath icon */}
+                    <span>{property.baths} baths</span>
+                  </div>
+                  {property.living_area_sqft && (
+                    <div className="flex items-center gap-2">
+                      <Square className="h-4 w-4" /> {/* Using imported Square icon */}
+                      <span>{property.living_area_sqft} sqft</span>
+                    </div>
+                  )}
+                  {property.year_built && (
+                    <div className="flex items-center gap-2">
+                       <Calendar className="h-4 w-4" /> {/* Using imported Calendar icon */}
+                      <span>Built {property.year_built}</span>
+                    </div>
+                  )}
+                   {property.universal_land_use && (
+                    <div className="flex items-center gap-2">
+                       <Tag className="h-4 w-4" /> {/* Using imported Tag icon */}
+                      <span>{property.universal_land_use}</span>
+                    </div>
+                  )}
+                   {property.status && (
+                    <div className="flex items-center gap-2">
+                       <Info className="h-4 w-4" /> {/* Using imported Info icon */}
+                      <span>Status: {property.status}</span>
+                    </div>
+                  )}
+
+                  <div className="font-bold text-lg text-primary mt-4"> {/* Increased top margin */}
+                    {property.list_price !== undefined && property.list_price !== null
+                      ? `$${property.list_price.toLocaleString()}`
+                      : "Price not listed"}
+                  </div>
+                </CardContent>
+                 <div className="p-6 pt-0"> {/* Add padding to align with CardContent */}
+                  <Button
+                    variant="default" // Changed button variant to default
+                    size="sm"
+                    onClick={() => handleViewDetails(property.id)}
+                    className="w-full" // Make button full width
+                  >
+                    View Details
+                  </Button>
+                </div>
+              </Card>
             ))}
           </div>
         ) : (
-          <Card>
-            <CardContent className="p-0 divide-y">
-              {currentProperties.map((property) => (
-                <PropertyListItem
-                  key={property.id}
-                  property={property}
-                  onViewDetails={handleViewDetails}
-                  skipTraceStatus={property.skip_trace_status}
+          <div className="space-y-4"> {/* Use a div with spacing instead of Card */}
+            {/* Select All Checkbox */}
+            <div className="flex items-center space-x-2 px-4"> {/* Added padding */}
+              <Checkbox
+                checked={selectedProperties.length === currentProperties.length && currentProperties.length > 0}
+                onCheckedChange={checked => handleSelectAll(!!checked)}
+                aria-label="Select all properties"
+              />
+              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                Select All
+              </label>
+            </div>
+
+            {/* Property List Items */}
+            {currentProperties.map((property) => (
+              <div
+                key={property.id}
+                className={`flex items-center gap-6 p-5 border rounded-lg transition-shadow ${ // Increased gap and padding
+                  selectedProperties.includes(property.id)
+                    ? "ring-2 ring-primary border-primary"
+                    : "hover:shadow-lg" // Added hover shadow
+                }`}
+              > {/* Container for checkbox and list item */}
+                <Checkbox
+                  checked={selectedProperties.includes(property.id)}
+                  onCheckedChange={checked => handleSelectProperty(property.id, !!checked)}
+                  aria-label={`Select property ${property.id}`}
                 />
-              ))}
-            </CardContent>
-          </Card>
+                <div className="flex-1"> {/* Wrapper to make PropertyListItem take full width */}
+                  <PropertyListItem
+                    property={property}
+                    onViewDetails={() => handleViewDetails(property.id)} // Assuming onViewDetails prop
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
         )
       )}
 
