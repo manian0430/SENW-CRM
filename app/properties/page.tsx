@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Search, MapPin, DollarSign, Plus, LayoutGrid, List, Loader2, UploadCloud, X, Home, Bed, Square, Calendar, Tag, Info, Bath } from "lucide-react"
+import { useRouter } from "next/navigation"
 import Papa from 'papaparse'
 import { saveAs } from 'file-saver'
 import type { ParseResult } from 'papaparse'
@@ -105,6 +106,8 @@ export default function PropertiesPage() {
   const [savingImport, setSavingImport] = useState(false)
   const [importConfirmed, setImportConfirmed] = useState(false)
   const [selectedProperties, setSelectedProperties] = useState<string[]>([])
+
+  const router = useRouter() // Initialize router
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -381,10 +384,8 @@ export default function PropertiesPage() {
   }
 
   const handleSendToAutomation = () => {
-    // Example: navigate to Automation with selected IDs (replace with your routing/state logic)
-    // router.push(`/automation?propertyIds=${selectedProperties.join(',')}`)
-    // Or set a global state/context
-    alert(`Send to Automation: ${selectedProperties.join(', ')}`)
+    // Navigate to Automation with selected IDs
+    router.push(`/automation?propertyIds=${selectedProperties.join(',')}`)
   }
 
   // Update the AddPropertyDialogContent
