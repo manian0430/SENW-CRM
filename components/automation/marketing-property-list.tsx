@@ -1,3 +1,4 @@
+import { PropertyListItem } from "@/components/ui/property-list-item";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
@@ -5,9 +6,10 @@ interface MarketingPropertyListProps {
   properties: any[];
   loading: boolean;
   error: string | null;
+  onPropertyClick: (property: any) => void;
 }
 
-export function MarketingPropertyList({ properties, loading, error }: MarketingPropertyListProps) {
+export function MarketingPropertyList({ properties, loading, error, onPropertyClick }: MarketingPropertyListProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -43,12 +45,11 @@ export function MarketingPropertyList({ properties, loading, error }: MarketingP
         <CardDescription>{`Applying actions to ${properties.length} properties.`}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <ul className="list-disc list-inside">
+        <div className="space-y-4">
           {properties.map((property) => (
-            <li key={property.id}>{property.address} ({property.city}, {property.state})</li>
+            <PropertyListItem key={property.id} property={property} onClick={() => onPropertyClick(property)} />
           ))}
-        </ul>
-        <p className="mt-4">Marketing automation content and actions for these properties go here.</p>
+        </div>
       </CardContent>
     </Card>
   );

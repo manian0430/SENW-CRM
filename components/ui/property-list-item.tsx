@@ -9,9 +9,10 @@ interface PropertyListItemProps {
   property: Property
   onViewDetails?: (id: string) => void
   skipTraceStatus?: string
+  onClick?: () => void; // Added onClick prop
 }
 
-export function PropertyListItem({ property, onViewDetails, skipTraceStatus }: PropertyListItemProps) {
+export function PropertyListItem({ property, onViewDetails, skipTraceStatus, onClick }: PropertyListItemProps) {
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
       case "active":
@@ -26,7 +27,10 @@ export function PropertyListItem({ property, onViewDetails, skipTraceStatus }: P
   }
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border bg-white p-4 shadow-sm">
+    <div
+      className="flex items-center gap-4 rounded-lg border bg-white p-4 shadow-sm hover:bg-gray-50 cursor-pointer" // Added hover effect and cursor
+      onClick={onClick} // Added onClick handler
+    >
       <div className="h-24 w-24 flex-shrink-0 overflow-hidden rounded-lg bg-gray-100">
         {property.images && property.images.length > 0 ? (
           <img
@@ -92,14 +96,16 @@ export function PropertyListItem({ property, onViewDetails, skipTraceStatus }: P
       </div>
       <div className="flex flex-col items-end gap-2">
         <div className="text-lg font-semibold">{property.list_price ? formatCurrency(property.list_price) : 'Price not listed'}</div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onViewDetails && onViewDetails(property.id)}
-        >
-          <Eye className="h-4 w-4 mr-2" />
-          View Details
-        </Button>
+        {onViewDetails && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onViewDetails(property.id)}
+          >
+            <Eye className="h-4 w-4 mr-2" />
+            View Details
+          </Button>
+        )}
       </div>
     </div>
   )

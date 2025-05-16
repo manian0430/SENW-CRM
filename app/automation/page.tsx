@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { PageHeader } from "@/components/ui/page-header"
-import { DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog" // Added Dialog
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,6 +25,8 @@ import { MarketingPropertyList } from "@/components/automation/marketing-propert
 import { PhoneSmsPropertyList } from "@/components/automation/phone-sms-property-list" // Added import
 
 
+import { PropertyAutomationOptions } from "@/components/automation/property-automation-options"; // Added import
+
 export default function AutomationPage() {
   const [activeTab, setActiveTab] = useState("workflows")
 
@@ -35,6 +37,7 @@ export default function AutomationPage() {
   const [emailTemplates, setEmailTemplates] = useState<any[]>([])
   const [automationLogs, setAutomationLogs] = useState<any[]>([])
   const [selectedProperties, setSelectedProperties] = useState<any[]>([]) // Added state for selected properties
+  const [selectedPropertyForOptions, setSelectedPropertyForOptions] = useState<any | null>(null); // New state for the property whose options are displayed
   const [appliedActionTypes, setAppliedActionTypes] = useState<string[]>([]); // New state for applied action types
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -255,14 +258,24 @@ export default function AutomationPage() {
         {/* Placeholder content for Marketing tab */}
         <TabsContent value="marketing" className="space-y-4">
           {appliedActionTypes.includes("marketing") && ( // Conditionally render based on appliedActionTypes
-            <MarketingPropertyList properties={selectedProperties} loading={loading} error={error} />
+            <MarketingPropertyList
+              properties={selectedProperties}
+              loading={loading}
+              error={error}
+              onPropertyClick={setSelectedPropertyForOptions}
+            />
           )}
         </TabsContent>
 
         {/* Placeholder content for Phone/SMS tab */}
         <TabsContent value="phone-sms" className="space-y-4">
            {appliedActionTypes.includes("phone-sms") && ( // Conditionally render based on appliedActionTypes
-            <PhoneSmsPropertyList properties={selectedProperties} loading={loading} error={error} />
+            <PhoneSmsPropertyList
+              properties={selectedProperties}
+              loading={loading}
+              error={error}
+              onPropertyClick={setSelectedPropertyForOptions}
+            />
           )}
         </TabsContent>
 
@@ -274,6 +287,28 @@ export default function AutomationPage() {
           <AutomationLogsTabContent automationLogs={automationLogs} loading={loading} error={error} />
         </TabsContent>
       </AutomationTabs>
+
+      {selectedPropertyForOptions && (
+        <Dialog open={!!selectedPropertyForOptions} onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setSelectedPropertyForOptions(null); // Clear selected property when modal is closed
+          }
+        }}>
+          <DialogContent className="sm:max-w-[600px]"> {/* Adjust max-width as needed */}
+            <DialogHeader>
+              <DialogTitle>Automation Options for {selectedPropertyForOptions?.property_address}</DialogTitle>
+            </DialogHeader>
+            <PropertyAutomationOptions
+              property={selectedPropertyForOptions}
+              actionType={activeTab as "marketing" | "phone-sms" | "email"} // Pass activeTab as actionType
+            />
+            {/* Optional: Add a footer with action buttons if needed */}
+            {/* <DialogFooter>
+              <Button variant="outline" onClick={() => setSelectedPropertyForOptions(null)}>Close</Button>
+            </DialogFooter> */}
+          </DialogContent>
+        </Dialog>
+      )}
 
       {activeTab === "workflows" && (
         <QuickStartGuide />

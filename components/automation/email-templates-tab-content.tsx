@@ -41,7 +41,14 @@ export function EmailTemplatesTabContent({ emailTemplates, loading, error }: Ema
 
   return (
     <Card>
-      <CardContent className="p-6">
+      <CardContent className="p-6 space-y-6">
+        <div className="space-y-2">
+          <h4 className="font-semibold">Email Automation</h4>
+          <p className="text-sm text-gray-500">
+            Compose emails with brochure attachments and AI assistance. Integration options for Mailchimp, Klaviyo, and Office 365 can be added here.
+          </p>
+        </div>
+
         <div className="flex justify-between items-center mb-4">
           <div className="text-sm text-muted-foreground">Showing {emailTemplates.length} email templates</div>
           <Button className="bg-senw-gold hover:bg-senw-gold/90 text-white">
