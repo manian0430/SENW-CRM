@@ -156,13 +156,13 @@ export interface Property {
     owner_1_last_name?: string;
     owner_1_full_name?: string;
     owner_1_email?: string;
-    owner_1_phone_numbers?: { number: string }[];
+    owner_1_phone_numbers?: string | null; // Changed type to string | null
     owner_2_first_name?: string;
     owner_2_middle_name?: string;
     owner_2_last_name?: string;
     owner_2_full_name?: string;
     owner_2_email?: string;
-    owner_2_phone_numbers?: { number: string }[];
+    owner_2_phone_numbers?: string | null; // Changed type to string | null
 
     // Financial Information
     equity?: number;

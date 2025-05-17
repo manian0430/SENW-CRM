@@ -262,7 +262,22 @@ export default function AutomationPage() {
               properties={selectedProperties}
               loading={loading}
               error={error}
-              onPropertyClick={setSelectedPropertyForOptions}
+              onPropertyClick={async (property) => {
+                setLoading(true); // Optional: show loading state while fetching
+                const { data, error } = await supabase
+                  .from('properties')
+                  .select('*')
+                  .eq('id', property.id)
+                  .single(); // Fetch a single property by ID
+
+                if (error) {
+                  console.error('Error fetching single property:', error);
+                  setError('Failed to fetch property details.'); // Optional: set error state
+                } else {
+                  setSelectedPropertyForOptions(data); // Update state with fresh data
+                }
+                setLoading(false); // Optional: hide loading state
+              }}
             />
           )}
         </TabsContent>
@@ -274,7 +289,22 @@ export default function AutomationPage() {
               properties={selectedProperties}
               loading={loading}
               error={error}
-              onPropertyClick={setSelectedPropertyForOptions}
+              onPropertyClick={async (property) => {
+                setLoading(true); // Optional: show loading state while fetching
+                const { data, error } = await supabase
+                  .from('properties')
+                  .select('*')
+                  .eq('id', property.id)
+                  .single(); // Fetch a single property by ID
+
+                if (error) {
+                  console.error('Error fetching single property:', error);
+                  setError('Failed to fetch property details.'); // Optional: set error state
+                } else {
+                  setSelectedPropertyForOptions(data); // Update state with fresh data
+                }
+                setLoading(false); // Optional: hide loading state
+              }}
             />
           )}
         </TabsContent>
