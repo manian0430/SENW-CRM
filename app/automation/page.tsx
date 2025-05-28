@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { PageHeader } from "@/components/ui/page-header"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog" // Added Dialog
 import { Button } from "@/components/ui/button"
@@ -23,7 +23,7 @@ import { AutomationLogsTabContent } from "@/components/automation/automation-log
 import { QuickStartGuide } from "@/components/automation/quick-start-guide"
 import { MarketingPropertyList } from "@/components/automation/marketing-property-list" // Added import
 import { PhoneSmsPropertyList } from "@/components/automation/phone-sms-property-list" // Added import
-
+import { EmailPropertyList } from "@/components/automation/email-property-list"
 
 import { PropertyAutomationOptions } from "@/components/automation/property-automation-options"; // Added import
 
@@ -41,6 +41,16 @@ export default function AutomationPage() {
   const [appliedActionTypes, setAppliedActionTypes] = useState<string[]>([]); // New state for applied action types
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [emailProperty, setEmailProperty] = useState<any | null>(null);
+  const [emailRecipients, setEmailRecipients] = useState("");
+  const [emailTemplateId, setEmailTemplateId] = useState<string | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailAttachments, setEmailAttachments] = useState<File[]>([]);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -228,6 +238,73 @@ export default function AutomationPage() {
     </DialogContent>
   )
 
+  // Helper to handle property click in Email tab
+  const handleEmailPropertyClick = (property: any) => {
+    setEmailProperty(property);
+    setEmailDialogOpen(true);
+    setEmailRecipients("");
+    setEmailTemplateId(null);
+    setEmailSubject("");
+    setEmailBody("");
+    setEmailAttachments([]);
+  };
+
+  // Helper to handle template selection
+  const handleTemplateChange = (templateId: string) => {
+    setEmailTemplateId(templateId);
+    const template = emailTemplates.find((t) => t.id === templateId);
+    if (template) {
+      setEmailSubject(template.subject || "");
+      setEmailBody(template.body || "");
+    }
+  };
+
+  // Helper to handle file input change
+  const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setEmailAttachments(Array.from(e.target.files));
+    }
+  };
+
+  // Helper to send email
+  const handleSendEmail = async () => {
+    setSendingEmail(true);
+    try {
+      // Prepare attachments for API
+      let attachments = [];
+      if (emailAttachments.length > 0) {
+        attachments = await Promise.all(
+          emailAttachments.map(async (file) => ({
+            filename: file.name,
+            content: await file.arrayBuffer(),
+            encoding: 'base64',
+          }))
+        );
+        // Convert ArrayBuffer to base64 string
+        attachments = attachments.map((att: any, i: number) => ({
+          ...att,
+          content: Buffer.from(att.content).toString('base64'),
+        }));
+      }
+      await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: emailRecipients,
+          subject: emailSubject,
+          text: emailBody,
+          html: emailBody,
+          attachments,
+        }),
+      });
+      setEmailDialogOpen(false);
+    } catch (err) {
+      alert("Failed to send email");
+    } finally {
+      setSendingEmail(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -310,7 +387,13 @@ export default function AutomationPage() {
         </TabsContent>
 
         <TabsContent value="email-templates" className="space-y-4">
-          <EmailTemplatesTabContent emailTemplates={emailTemplates} loading={loading} error={error} />
+          <EmailTemplatesTabContent
+            emailTemplates={emailTemplates}
+            loading={loading}
+            error={error}
+            selectedProperties={selectedProperties}
+            onPropertyClick={handleEmailPropertyClick}
+          />
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">
@@ -343,6 +426,74 @@ export default function AutomationPage() {
       {activeTab === "workflows" && (
         <QuickStartGuide />
       )}
+
+      {/* Email Send Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Send Email for {emailProperty?.property_address}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="recipients">To</Label>
+              <Input
+                id="recipients"
+                placeholder="Enter recipient emails (comma separated)"
+                value={emailRecipients}
+                onChange={(e) => setEmailRecipients(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="template">Template</Label>
+              <Select value={emailTemplateId || undefined} onValueChange={handleTemplateChange}>
+                <SelectTrigger id="template">
+                  <SelectValue placeholder="Select template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {emailTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="subject">Subject</Label>
+              <Input
+                id="subject"
+                placeholder="Enter email subject"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="body">Message</Label>
+              <Textarea
+                id="body"
+                placeholder="Enter email body"
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                className="min-h-[120px]"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="attachments">Attachments</Label>
+              <Input
+                id="attachments"
+                type="file"
+                multiple
+                ref={fileInputRef}
+                onChange={handleAttachmentChange}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={sendingEmail}>Cancel</Button>
+            <Button className="bg-senw-gold hover:bg-senw-gold/90 text-white" onClick={handleSendEmail} disabled={sendingEmail}>
+              {sendingEmail ? "Sending..." : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
