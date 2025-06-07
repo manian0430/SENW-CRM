@@ -26,22 +26,25 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-    setLoading(false); // Move setLoading false up
+      if (signInError) {
+        setError(signInError.message);
+        return;
+      }
 
-    if (error) {
-      setError(error.message);
-    } else {
-      // Refresh server components first to recognize the new session
+      // Successful login
       router.refresh();
-      // Add a small delay before redirecting to allow cookie processing
-      setTimeout(() => {
-        router.push('/'); // Redirect to home page
-      }, 100); // 100ms delay
+      router.push('/');
+    } catch (err) {
+      setError('An unexpected error occurred. Please try again.');
+      console.error('Login error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 

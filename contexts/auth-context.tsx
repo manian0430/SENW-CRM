@@ -24,11 +24,19 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  // Initialize the browser client
-  const [supabase] = useState(() => createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  ));
+  const [supabase] = useState(() => 
+    createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      }
+    )
+  );
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,43 +44,43 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   useEffect(() => {
     const getSession = async () => {
-      // Use the client component client instance
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setSession(session);
+        setUser(session?.user ?? null);
+      } catch (error) {
+        console.error('Error getting session:', error);
+      } finally {
+        setLoading(false);
+      }
     };
 
     getSession();
 
-    // Use the browser client instance for the listener
-    // Add explicit types for the callback parameters
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event: AuthChangeEvent, session: Session | null) => {
-        const currentUser = session?.user ?? null;
-        // Only update state if the user actually changed
-        // Remove router.refresh() here as it might conflict with login page logic
-        if (JSON.stringify(user) !== JSON.stringify(currentUser)) {
-            setSession(session);
-            setUser(currentUser);
-            // router.refresh(); // Removed refresh from here
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event: AuthChangeEvent, session: Session | null) => {
+        setSession(session);
+        setUser(session?.user ?? null);
         setLoading(false);
+        router.refresh();
       }
     );
 
     return () => {
-      authListener?.subscription.unsubscribe();
+      subscription.unsubscribe();
     };
-  }, [supabase]); // Add supabase client to dependency array
+  }, [supabase, router]); // Add supabase client to dependency array
 
   const signOut = async () => {
-    // Use the client component client instance
-    await supabase.auth.signOut();
-    setSession(null);
-    setUser(null);
-    router.refresh(); // Refresh server components on sign out
-    router.push('/login'); // Redirect to login after sign out
+    try {
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+      router.refresh(); // Refresh server components on sign out
+      router.push('/login'); // Redirect to login after sign out
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   };
 
   const value = {
