@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { PhoneCall, PhoneOff, Mic, MicOff, Volume2 } from "lucide-react";
 
 interface PropertyAutomationOptionsProps {
   property: any;
@@ -16,11 +17,11 @@ const tabButtonStyle = (active: boolean) =>
   `px-4 py-2 rounded-t-md font-semibold transition-colors border-b-2 ${
     active
       ? "bg-white border-primary text-primary shadow"
-      : "bg-gray-100 border-transparent text-gray-500 hover:bg-gray-200"
+      : "bg-gray-100 border-transparent text-gray-500 hover:bg-primary/10"
   }`;
 
 export function PropertyAutomationOptions({ property, actionType }: PropertyAutomationOptionsProps) {
-  const [activeTab, setActiveTab] = useState<'sms' | 'call'>('sms'); // Internal tabs for phone-sms
+  const [activeTab, setActiveTab] = useState<'sms' | 'call'>('sms');
   const [smsMessage, setSmsMessage] = useState("");
   const [manualPhoneNumber, setManualPhoneNumber] = useState("");
   const [selectedDialer, setSelectedDialer] = useState<"twilio" | "dialpad" | "" | string>("");
@@ -126,6 +127,14 @@ export function PropertyAutomationOptions({ property, actionType }: PropertyAuto
                     alert("Please enter a phone number.");
                     return;
                   }
+                  
+                  // Validate phone number format
+                  const phoneRegex = /^\+[1-9]\d{1,14}$/;
+                  if (!phoneRegex.test(phoneNumber)) {
+                    alert("Please enter a valid phone number in international format (e.g., +1234567890)");
+                    return;
+                  }
+
                   try {
                     const response = await fetch('/api/dialpad/sms', {
                       method: 'POST',
@@ -221,7 +230,12 @@ export function PropertyAutomationOptions({ property, actionType }: PropertyAuto
                         headers: {
                           'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify({ to: phoneNumber }),
+                        body: JSON.stringify({
+                          phone_number: phoneNumber, // Use phoneNumber from input
+                          is_consult: false,
+                          outbound_caller_id: '+12013356486', // Hardcoded as per example
+                          user_id: 6412736863617024 // Hardcoded as per example
+                        }),
                       });
                       const data = await response.json();
                       if (response.ok) {
