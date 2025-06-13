@@ -1,4 +1,17 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// Ensure Supabase client is only created once
+const supabase = (() => {
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase URL or Anon Key is missing in app/api/dialpad/sms/route.ts');
+    return null;
+  }
+  return createClient(supabaseUrl, supabaseAnonKey);
+})();
 
 export async function POST(request: Request) {
   try {
@@ -67,6 +80,26 @@ export async function POST(request: Request) {
     if (!res.ok) {
       console.error('Dialpad API Error:', data);
       return NextResponse.json({ error: data.message || 'Dialpad SMS failed' }, { status: res.status });
+    }
+
+    // Save the outbound message to Supabase
+    if (supabase) {
+      const { error: dbError } = await supabase
+        .from('dialpad_sms_messages')
+        .insert({
+          from_number: fromNumber,
+          to_number: to,
+          message_body: message,
+          direction: 'outbound',
+          received_at: new Date().toISOString(),
+        });
+
+      if (dbError) {
+        console.error('Error saving outbound SMS to Supabase:', dbError);
+        // Continue processing even if saving to DB fails, as SMS was sent via Dialpad
+      } else {
+        console.log('Outbound SMS saved to Supabase.');
+      }
     }
 
     // If we have a message ID, try to get its status
