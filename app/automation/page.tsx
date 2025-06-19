@@ -35,7 +35,7 @@ export default function AutomationPage() {
 
   const [workflows, setWorkflows] = useState<any[]>([])
   const [emailTemplates, setEmailTemplates] = useState<any[]>([])
-  const [automationLogs, setAutomationLogs] = useState<any[]>([])
+  const [communicationLogs, setCommunicationLogs] = useState<any[]>([]) // Renamed from automationLogs
   const [selectedProperties, setSelectedProperties] = useState<any[]>([]) // Added state for selected properties
   const [selectedPropertyForOptions, setSelectedPropertyForOptions] = useState<any | null>(null); // New state for the property whose options are displayed
   const [appliedActionTypes, setAppliedActionTypes] = useState<string[]>([]); // New state for applied action types
@@ -57,6 +57,24 @@ export default function AutomationPage() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
+  const refreshCommunicationLogs = async () => {
+    setLoading(true);
+    console.log('Attempting to refresh communication logs...');
+    const { data: updatedCommunicationLogs, error: logsError } = await supabase
+      .from('communications_log')
+      .select('*')
+      .order('timestamp', { ascending: false });
+    if (logsError) {
+      console.error('Error refetching communication logs:', logsError);
+      setError(logsError.message);
+      console.log('Error details from Supabase logs fetch:', logsError);
+    } else {
+      console.log('Successfully fetched communication logs:', updatedCommunicationLogs);
+      setCommunicationLogs(updatedCommunicationLogs || []);
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -75,12 +93,8 @@ export default function AutomationPage() {
         if (emailTemplatesError) throw emailTemplatesError
         setEmailTemplates(emailTemplatesData || [])
 
-        // Fetch automation logs
-        const { data: automationLogsData, error: automationLogsError } = await supabase
-          .from('automation_logs')
-          .select('*')
-        if (automationLogsError) throw automationLogsError
-        setAutomationLogs(automationLogsData || [])
+        // Fetch communication logs (instead of automation logs)
+        await refreshCommunicationLogs(); // Use the new refresh function
 
         // Fetch selected properties if propertyIds are present
         if (propertyIds) {
@@ -98,7 +112,7 @@ export default function AutomationPage() {
       } catch (err: any) {
         setError(err.message)
       } finally {
-        setLoading(false)
+        // setLoading(false); // setLoading is now handled by refreshCommunicationLogs
       }
     }
 
@@ -249,55 +263,59 @@ export default function AutomationPage() {
     setEmailAttachments([]);
   };
 
-  // Helper to handle template selection
   const handleTemplateChange = (templateId: string) => {
     setEmailTemplateId(templateId);
-    const template = emailTemplates.find((t) => t.id === templateId);
-    if (template) {
-      setEmailSubject(template.subject || "");
-      setEmailBody(template.body || "");
+    const selectedTemplate = emailTemplates.find(template => template.id === templateId);
+    if (selectedTemplate) {
+      setEmailSubject(selectedTemplate.subject);
+      setEmailBody(selectedTemplate.body);
+    } else {
+      setEmailSubject("");
+      setEmailBody("");
     }
   };
 
-  // Helper to handle file input change
   const handleAttachmentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setEmailAttachments(Array.from(e.target.files));
     }
   };
 
-  // Helper to send email
   const handleSendEmail = async () => {
+    if (!emailRecipients || (!emailBody && emailAttachments.length === 0)) {
+      alert("Please fill in recipients and provide an email body or attachment.");
+      return;
+    }
+
     setSendingEmail(true);
+    // Removed formData approach as the backend expects a JSON body.
+    // Attachments will be sent as an array of objects with filenames.
     try {
-      // Prepare attachments for API
-      let attachments = [];
-      if (emailAttachments.length > 0) {
-        attachments = await Promise.all(
-          emailAttachments.map(async (file) => ({
-            filename: file.name,
-            content: await file.arrayBuffer(),
-            encoding: 'base64',
-          }))
-        );
-        // Convert ArrayBuffer to base64 string
-        attachments = attachments.map((att: any, i: number) => ({
-          ...att,
-          content: Buffer.from(att.content).toString('base64'),
-        }));
-      }
-      await fetch("/api/email/send", {
+      const response = await fetch("/api/email/send", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           to: emailRecipients,
           subject: emailSubject,
-          text: emailBody,
           html: emailBody,
-          attachments,
+          // Simplified attachments for now. For actual file content, 
+          // you'd need to base64 encode them or implement a separate file upload mechanism.
+          attachments: emailAttachments.map(file => ({ filename: file.name })) 
         }),
       });
-      setEmailDialogOpen(false);
+      const data = await response.json();
+      if (response.ok) {
+        alert('Email sent successfully!');
+        setEmailDialogOpen(false);
+
+        // Removed Gemini analysis alert, as it's now logged to DB and displayed in Logs tab
+
+        // Refetch communication logs after sending email to update the display
+        await refreshCommunicationLogs();
+
+      } else {
+        alert(`Failed to send email: ${data && data.error ? data.error : 'Unknown error'}`);
+      }
     } catch (err) {
       alert("Failed to send email");
     } finally {
@@ -397,7 +415,7 @@ export default function AutomationPage() {
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">
-          <AutomationLogsTabContent automationLogs={automationLogs} loading={loading} error={error} />
+          <AutomationLogsTabContent automationLogs={communicationLogs} loading={loading} error={error} />
         </TabsContent>
       </AutomationTabs>
 
@@ -414,6 +432,7 @@ export default function AutomationPage() {
             <PropertyAutomationOptions
               property={selectedPropertyForOptions}
               actionType={activeTab as "marketing" | "phone-sms" | "email"} // Pass activeTab as actionType
+              onCommunicationSent={refreshCommunicationLogs} // Pass the refresh function
             />
             {/* Optional: Add a footer with action buttons if needed */}
             {/* <DialogFooter>
@@ -429,66 +448,79 @@ export default function AutomationPage() {
 
       {/* Email Send Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[700px]">
           <DialogHeader>
-            <DialogTitle>Send Email for {emailProperty?.property_address}</DialogTitle>
+            <DialogTitle>Send Email to {emailProperty?.owner_1_name || 'Property Owner'}</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid gap-2">
-              <Label htmlFor="recipients">To</Label>
+              <Label htmlFor="email-to">To</Label>
               <Input
-                id="recipients"
-                placeholder="Enter recipient emails (comma separated)"
+                id="email-to"
+                placeholder="Recipient email address (e.g., owner@example.com)"
                 value={emailRecipients}
                 onChange={(e) => setEmailRecipients(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="template">Template</Label>
-              <Select value={emailTemplateId || undefined} onValueChange={handleTemplateChange}>
-                <SelectTrigger id="template">
-                  <SelectValue placeholder="Select template" />
+              <Label htmlFor="email-template">Select Template</Label>
+              <Select onValueChange={handleTemplateChange} value={emailTemplateId || ''}>
+                <SelectTrigger id="email-template">
+                  <SelectValue placeholder="Choose an email template" />
                 </SelectTrigger>
                 <SelectContent>
-                  {emailTemplates.map((template) => (
-                    <SelectItem key={template.id} value={template.id}>{template.name}</SelectItem>
-                  ))}
+                  {emailTemplates.length === 0 ? (
+                    <SelectItem value="no-templates" disabled>
+                      No templates available
+                    </SelectItem>
+                  ) : (
+                    emailTemplates.map(template => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="subject">Subject</Label>
+              <Label htmlFor="email-subject">Subject</Label>
               <Input
-                id="subject"
-                placeholder="Enter email subject"
+                id="email-subject"
+                placeholder="Email Subject"
                 value={emailSubject}
                 onChange={(e) => setEmailSubject(e.target.value)}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="body">Message</Label>
+              <Label htmlFor="email-body">Body</Label>
               <Textarea
-                id="body"
-                placeholder="Enter email body"
+                id="email-body"
+                placeholder="Email Body"
+                className="min-h-[150px]"
                 value={emailBody}
                 onChange={(e) => setEmailBody(e.target.value)}
-                className="min-h-[120px]"
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="attachments">Attachments</Label>
+              <Label htmlFor="email-attachments">Attachments</Label>
               <Input
-                id="attachments"
+                id="email-attachments"
                 type="file"
                 multiple
-                ref={fileInputRef}
                 onChange={handleAttachmentChange}
+                ref={fileInputRef}
               />
+              {emailAttachments.length > 0 && (
+                <div className="text-sm text-gray-500">
+                  Attached: {emailAttachments.map(file => file.name).join(", ")}
+                </div>
+              )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={sendingEmail}>Cancel</Button>
-            <Button className="bg-senw-gold hover:bg-senw-gold/90 text-white" onClick={handleSendEmail} disabled={sendingEmail}>
+            <Button variant="outline" onClick={() => setEmailDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSendEmail} disabled={sendingEmail}>
               {sendingEmail ? "Sending..." : "Send Email"}
             </Button>
           </DialogFooter>

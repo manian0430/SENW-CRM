@@ -3,7 +3,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Loader2 } from "lucide-react";
 
 interface AutomationLogsTabContentProps {
-  automationLogs: any[];
+  automationLogs: any[]; // This prop will now contain communication logs
   loading: boolean;
   error: string | null;
 }
@@ -31,7 +31,7 @@ export function AutomationLogsTabContent({ automationLogs, loading, error }: Aut
     return (
       <Card>
         <CardContent className="p-6 text-center text-gray-500">
-          No automation logs found.
+          No communication logs found.
         </CardContent>
       </Card>
     );
@@ -45,43 +45,37 @@ export function AutomationLogsTabContent({ automationLogs, loading, error }: Aut
             <TableHeader>
               <TableRow className="bg-muted/50">
                 <TableHead>Timestamp</TableHead>
-                <TableHead>Workflow</TableHead>
-                <TableHead>Triggered By</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead>To</TableHead>
+                <TableHead>Subject/Body</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Actions Executed</TableHead>
-                <TableHead className="text-right">Details</TableHead>
+                <TableHead>Gemini Analysis</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {automationLogs.map((log) => (
                 <TableRow key={log.id}>
                   <TableCell>{new Date(log.timestamp).toLocaleString()}</TableCell>
-                  <TableCell>{log.workflowName}</TableCell>
-                  <TableCell>{log.triggeredBy}</TableCell>
+                  <TableCell>{log.communication_type}</TableCell>
+                  <TableCell>{log.from_address}</TableCell>
+                  <TableCell>{log.to_address}</TableCell>
+                  <TableCell>
+                    {log.communication_type === 'email' ? 
+                      <><strong>Subject:</strong> {log.subject}<br/><strong>Body:</strong> {log.body?.substring(0, 100)}...</> : 
+                      log.body?.substring(0, 100)}...
+                  </TableCell>
                   <TableCell>
                     <span
                       className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                        log.status === "Success" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        log.status === "sent" || log.status === "initiated" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}
                     >
                       {log.status}
                     </span>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1">
-                      {log.actions.map((action: string, i: number) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100"
-                        >
-                          {action}
-                        </span>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {/* Placeholder for details link/button */}
-                    View Details
+                  <TableCell className="text-sm text-gray-600">
+                    {log.gemini_analysis || 'No analysis available'}
                   </TableCell>
                 </TableRow>
               ))}

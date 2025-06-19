@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Import GoogleGenerativeAI
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -13,7 +14,7 @@ const supabase = (() => {
   return createClient(supabaseUrl, supabaseAnonKey);
 })();
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const { to, message } = await request.json();
     console.log('SMS Request:', { to, message });
@@ -82,27 +83,43 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: data.message || 'Dialpad SMS failed' }, { status: res.status });
     }
 
-    // Save the outbound message to Supabase
+    let geminiAnalysis = null;
+    // Perform Gemini analysis for the sent message directly here
+    try {
+      // --- MOCK GEMINI ANALYSIS ---
+      const mockAnalysis = `Mock Analysis for: "${message.substring(0, 50)}..."
+- Tone: Positive
+- Key Topics: Property, Offer
+- Sentiment Score: 0.85`;
+      geminiAnalysis = mockAnalysis;
+      console.log('Gemini Analysis for SMS (Mock):', geminiAnalysis);
+      // --- END MOCK GEMINI ANALYSIS ---
+    } catch (analyzeError) {
+      console.error('Error during Gemini analysis for SMS:', analyzeError);
+    }
+
+    // Save the outbound message to communications_log table
     if (supabase) {
       const { error: dbError } = await supabase
-        .from('dialpad_sms_messages')
+        .from('communications_log')
         .insert({
-          from_number: fromNumber,
-          to_number: to,
-          message_body: message,
+          communication_type: 'sms',
+          from_address: fromNumber,
+          to_address: to,
+          body: message,
           direction: 'outbound',
-          received_at: new Date().toISOString(),
+          status: 'sent',
+          gemini_analysis: geminiAnalysis, // Store the analysis result
         });
 
       if (dbError) {
-        console.error('Error saving outbound SMS to Supabase:', dbError);
-        // Continue processing even if saving to DB fails, as SMS was sent via Dialpad
+        console.error('Error saving outbound SMS to communications_log:', dbError);
       } else {
-        console.log('Outbound SMS saved to Supabase.');
+        console.log('Outbound SMS and analysis saved to communications_log.');
       }
     }
 
-    // If we have a message ID, try to get its status
+    // If we have a message ID, try to get its status - KEEP THIS FOR DIALPAD-SPECIFIC STATUS
     if (data.id) {
       try {
         const statusRes = await fetch(`https://dialpad.com/api/v2/messages/${data.id}?apikey=${apiKey}`, {
