@@ -59,20 +59,21 @@ export default function AutomationPage() {
 
   const refreshCommunicationLogs = async () => {
     setLoading(true);
-    console.log('Attempting to refresh communication logs...');
-    const { data: updatedCommunicationLogs, error: logsError } = await supabase
-      .from('communications_log')
-      .select('*')
-      .order('timestamp', { ascending: false });
-    if (logsError) {
-      console.error('Error refetching communication logs:', logsError);
-      setError(logsError.message);
-      console.log('Error details from Supabase logs fetch:', logsError);
-    } else {
-      console.log('Successfully fetched communication logs:', updatedCommunicationLogs);
-      setCommunicationLogs(updatedCommunicationLogs || []);
+    setError(null);
+    try {
+      const response = await fetch('/api/logs');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch logs');
+      }
+      const data = await response.json();
+      setCommunicationLogs(data || []);
+    } catch (err: any) {
+      console.error('Error refreshing communication logs:', err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -93,8 +94,8 @@ export default function AutomationPage() {
         if (emailTemplatesError) throw emailTemplatesError
         setEmailTemplates(emailTemplatesData || [])
 
-        // Fetch communication logs (instead of automation logs)
-        await refreshCommunicationLogs(); // Use the new refresh function
+        // Fetch communication logs via the new API route
+        await refreshCommunicationLogs();
 
         // Fetch selected properties if propertyIds are present
         if (propertyIds) {
@@ -112,7 +113,7 @@ export default function AutomationPage() {
       } catch (err: any) {
         setError(err.message)
       } finally {
-        // setLoading(false); // setLoading is now handled by refreshCommunicationLogs
+        // setLoading is now handled by refreshCommunicationLogs
       }
     }
 
@@ -415,7 +416,15 @@ export default function AutomationPage() {
         </TabsContent>
 
         <TabsContent value="logs" className="space-y-4">
-          <AutomationLogsTabContent automationLogs={communicationLogs} loading={loading} error={error} />
+          <AutomationLogsTabContent 
+            automationLogs={communicationLogs} 
+            loading={loading} 
+            error={error} 
+          />
+        </TabsContent>
+
+        <TabsContent value="guide">
+          <QuickStartGuide />
         </TabsContent>
       </AutomationTabs>
 
@@ -440,10 +449,6 @@ export default function AutomationPage() {
             </DialogFooter> */}
           </DialogContent>
         </Dialog>
-      )}
-
-      {activeTab === "workflows" && (
-        <QuickStartGuide />
       )}
 
       {/* Email Send Dialog */}

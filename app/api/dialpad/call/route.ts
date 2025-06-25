@@ -15,7 +15,7 @@ const supabase = (() => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { phone_number } = await request.json();
+    const { phone_number, property_id } = await request.json();
     console.log('Call Request:', { phone_number });
 
     const apiKey = process.env.DIALPAD_API_KEY;
@@ -91,7 +91,8 @@ export async function POST(request: NextRequest) {
           body: `Outbound call initiated to ${phone_number}`,
           direction: 'outbound',
           status: 'initiated',
-          gemini_analysis: geminiAnalysis, // Store the analysis result
+          gemini_analysis: geminiAnalysis,
+          property_id: property_id,
         });
 
       if (dbError) {

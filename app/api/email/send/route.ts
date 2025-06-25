@@ -17,7 +17,7 @@ const supabase = (() => {
 
 export async function POST(request: NextRequest) {
   try {
-    const { to, subject, text, html, attachments } = await request.json();
+    const { to, subject, text, html, attachments, property_id } = await request.json();
 
     if (!to || !subject || (!text && !html)) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -74,7 +74,8 @@ export async function POST(request: NextRequest) {
           body: html || text,
           direction: 'outbound',
           status: 'sent',
-          gemini_analysis: geminiAnalysis, // Store the analysis result
+          gemini_analysis: geminiAnalysis,
+          property_id: property_id,
         });
 
       if (dbError) {

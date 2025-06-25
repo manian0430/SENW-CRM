@@ -21,6 +21,8 @@ import { Pagination } from "@/components/ui/pagination"
 import type { Property } from "@/types/supabase"
 import { createBrowserClient } from '@supabase/ssr'
 import { Checkbox } from "@/components/ui/checkbox"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Label } from "@/components/ui/label"
 
 // Add this interface for the form
 interface AddPropertyForm {
@@ -100,6 +102,8 @@ export default function PropertiesPage() {
     dnc: number;
     active: number;
     outreach: number;
+    columns: string[];
+    selectedColumns: string[];
   }>(null)
   const [skipTraceFilter, setSkipTraceFilter] = useState<'dnc' | 'active' | 'outreach'>('outreach')
   const [pendingImportedProperties, setPendingImportedProperties] = useState<Property[] | null>(null)
@@ -272,6 +276,7 @@ export default function PropertiesPage() {
       complete: async (results: ParseResult<any>) => {
         try {
           const newProperties = results.data
+          const columns = newProperties.length > 0 ? Object.keys(newProperties[0]) : []
           // Compute skip trace status counts
           let dnc = 0, active = 0, outreach = 0
           newProperties.forEach(p => {
@@ -284,7 +289,9 @@ export default function PropertiesPage() {
             total: newProperties.length,
             dnc,
             active,
-            outreach
+            outreach,
+            columns,
+            selectedColumns: columns,
           })
           setPendingImportedProperties(newProperties)
         } catch (err) {
@@ -308,13 +315,41 @@ export default function PropertiesPage() {
     } as any)
   }
 
+  const handleColumnSelectionChange = (column: string, checked: boolean) => {
+    if (!importSummary) return
+
+    let newSelectedColumns: string[]
+    if (checked) {
+      newSelectedColumns = [...importSummary.selectedColumns, column]
+    } else {
+      newSelectedColumns = importSummary.selectedColumns.filter(
+        (c) => c !== column
+      )
+    }
+
+    setImportSummary({
+      ...importSummary,
+      selectedColumns: newSelectedColumns,
+    })
+  }
+
   const handleConfirmImport = async () => {
-    if (!pendingImportedProperties) return
+    if (!pendingImportedProperties || !importSummary) return
     setSavingImport(true)
     try {
+      const propertiesToImport = pendingImportedProperties.map((record: { [key: string]: any }) => {
+        const newRecord: { [key: string]: any } = {}
+        importSummary.selectedColumns.forEach(col => {
+          newRecord[col] = record[col]
+        })
+        return newRecord
+      })
+
+      const transformedProperties = transformCSVToProperties(propertiesToImport)
+
       const { data, error } = await supabase
         .from('properties')
-        .insert(pendingImportedProperties)
+        .insert(transformedProperties)
       if (error) {
         toast({
           title: "Error",
@@ -969,14 +1004,38 @@ export default function PropertiesPage() {
               <div>Marked DNC: <b>{importSummary.dnc}</b></div>
               <div>Active Listings: <b>{importSummary.active}</b></div>
               <div>Ready for Outreach: <b>{importSummary.outreach}</b></div>
+              {importSummary.columns.length > 0 && (
+                <div className="mt-4">
+                  <p className="font-semibold">Columns to be added:</p>
+                  <ScrollArea className="h-40 rounded-md border mt-2">
+                    <div className="p-4 space-y-2">
+                      {importSummary.columns.map((col) => (
+                        <div key={col} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={`col-${col}`}
+                            checked={importSummary.selectedColumns.includes(col)}
+                            onCheckedChange={(checked) => handleColumnSelectionChange(col, !!checked)}
+                          />
+                          <Label
+                            htmlFor={`col-${col}`}
+                            className="text-sm font-medium leading-none"
+                          >
+                            {col}
+                          </Label>
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button onClick={() => setImportSummary(null)} disabled={savingImport}>Cancel</Button>
               <Button onClick={handleConfirmImport} disabled={savingImport}>
                 {savingImport ? (
-                  <span className="flex items-center gap-2"><Loader2 className="animate-spin h-4 w-4" /> Saving...</span>
+                  <span className="flex items-center gap-2"><Loader2 className="animate-spin h-4 w-4" /> Uploading...</span>
                 ) : (
-                  'Confirm & Save'
+                  'Confirm and Upload'
                 )}
               </Button>
             </DialogFooter>

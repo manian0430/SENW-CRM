@@ -1,0 +1,2 @@
+ALTER TABLE public.leads
+ADD COLUMN is_hot BOOLEAN DEFAULT FALSE; 

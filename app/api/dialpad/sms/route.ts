@@ -1,23 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-import { GoogleGenerativeAI } from "@google/generative-ai"; // Import GoogleGenerativeAI
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-// Ensure Supabase client is only created once
-const supabase = (() => {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.error('Supabase URL or Anon Key is missing in app/api/dialpad/sms/route.ts');
-    return null;
-  }
-  return createClient(supabaseUrl, supabaseAnonKey);
-})();
+import { supabaseAdmin } from '@/lib/supabase/admin';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: NextRequest) {
+  console.log('Checking for Service Key:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
   try {
-    const { to, message } = await request.json();
-    console.log('SMS Request:', { to, message });
+    const { to, message, property_id } = await request.json();
+    console.log('SMS Request:', { to, message, property_id });
     
     const apiKey = process.env.DIALPAD_API_KEY;
     const userId = process.env.DIALPAD_USER_ID;
@@ -47,11 +36,10 @@ export async function POST(request: NextRequest) {
       from_number: fromNumber,
       user_id: userId,
       text: message,
-      type: 'sms'  // Explicitly specify this is an SMS
+      type: 'sms'
     };
     console.log('Dialpad API Request:', requestBody);
 
-    // Using the correct Dialpad API endpoint for SMS messages
     const res = await fetch(`https://dialpad.com/api/v2/sms?apikey=${apiKey}`, {
       method: 'POST',
       headers: {
@@ -61,7 +49,6 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(requestBody),
     });
 
-    // Log the raw response for debugging
     const responseText = await res.text();
     console.log('Raw API Response:', responseText);
 
@@ -84,49 +71,82 @@ export async function POST(request: NextRequest) {
     }
 
     let geminiAnalysis = null;
-    // Perform Gemini analysis for the sent message directly here
     try {
-      // --- MOCK GEMINI ANALYSIS ---
       const mockAnalysis = `Mock Analysis for: "${message.substring(0, 50)}..."
 - Tone: Positive
 - Key Topics: Property, Offer
 - Sentiment Score: 0.85`;
       geminiAnalysis = mockAnalysis;
       console.log('Gemini Analysis for SMS (Mock):', geminiAnalysis);
-      // --- END MOCK GEMINI ANALYSIS ---
+
+      const sentimentScoreMatch = geminiAnalysis.match(/Sentiment Score: (\d\.\d+)/);
+      const sentimentScore = sentimentScoreMatch ? parseFloat(sentimentScoreMatch[1]) : 0;
+
+      if (sentimentScore > 0.8) {
+        const { data: lead, error: leadError } = await supabaseAdmin
+          .from('leads')
+          .select('id')
+          .or(`phone.eq.${to},email.eq.${to}`)
+          .limit(1)
+          .single();
+
+        if (lead && !leadError) {
+          try {
+            const assignApiUrl = new URL('/api/leads/assign', request.url);
+            
+            const assignResponse = await fetch(assignApiUrl.href, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lead_id: lead.id }),
+            });
+            
+            if (assignResponse.ok) {
+              const assignResult = await assignResponse.json();
+              console.log('Lead assignment successful:', assignResult);
+              geminiAnalysis += `\n- Action: Hot lead automatically assigned. Message: ${assignResult.message}`;
+            } else {
+              const assignError = await assignResponse.json();
+              console.error('Lead assignment failed:', assignError);
+              geminiAnalysis += `\n- Action: Hot lead detected, but assignment failed. Reason: ${assignError.error}`;
+            }
+          } catch (e) {
+            console.error('Error calling assign API:', e);
+            geminiAnalysis += `\n- Action: Hot lead detected, but an error occurred during assignment.`;
+          }
+        } else {
+          geminiAnalysis += `\n- Action: Hot lead detected, but no matching lead found for ${to}.`;
+          if (leadError) console.error("Error fetching lead for assignment:", leadError.message);
+        }
+      }
+
     } catch (analyzeError) {
       console.error('Error during Gemini analysis for SMS:', analyzeError);
     }
 
-    // Save the outbound message to communications_log table
-    if (supabase) {
-      const { error: dbError } = await supabase
-        .from('communications_log')
-        .insert({
-          communication_type: 'sms',
-          from_address: fromNumber,
-          to_address: to,
-          body: message,
-          direction: 'outbound',
-          status: 'sent',
-          gemini_analysis: geminiAnalysis, // Store the analysis result
-        });
+    const { error: dbError } = await supabaseAdmin
+      .from('communications_log')
+      .insert({
+        communication_type: 'sms',
+        from_address: fromNumber,
+        to_address: to,
+        body: message,
+        direction: 'outbound',
+        status: 'sent',
+        gemini_analysis: geminiAnalysis,
+        property_id: property_id,
+      });
 
-      if (dbError) {
-        console.error('Error saving outbound SMS to communications_log:', dbError);
-      } else {
-        console.log('Outbound SMS and analysis saved to communications_log.');
-      }
+    if (dbError) {
+      console.error('Error saving outbound SMS to communications_log:', dbError);
+    } else {
+      console.log('Outbound SMS and analysis saved to communications_log.');
     }
 
-    // If we have a message ID, try to get its status - KEEP THIS FOR DIALPAD-SPECIFIC STATUS
     if (data.id) {
       try {
         const statusRes = await fetch(`https://dialpad.com/api/v2/messages/${data.id}?apikey=${apiKey}`, {
           method: 'GET',
-          headers: {
-            'accept': 'application/json'
-          }
+          headers: { 'accept': 'application/json' }
         });
         
         if (statusRes.ok) {
