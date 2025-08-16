@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { MoreHorizontal, Plus, Eye, Edit } from "lucide-react"
+import { MoreHorizontal, Plus, Eye, Edit, Phone, Mail, MessageSquare, Calendar, MapPin, User, Loader2 } from "lucide-react"
 import { useAuth } from "@/contexts/auth-context"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -16,6 +16,9 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { formatDistanceToNow } from 'date-fns'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Separator } from "@/components/ui/separator"
 
 // Types matching Supabase table
 interface Lead {
@@ -29,6 +32,22 @@ interface Lead {
   created_at: string
   updated_at: string
   is_hot: boolean
+}
+
+interface CommunicationLog {
+  id: string
+  communication_type: 'email' | 'sms' | 'call'
+  from_address: string
+  to_address: string
+  subject?: string
+  body?: string
+  direction: 'inbound' | 'outbound'
+  status: string
+  timestamp: string
+  gemini_analysis?: string
+  property?: {
+    property_address: string
+  }
 }
 
 export default function LeadsPage() {
@@ -46,6 +65,9 @@ export default function LeadsPage() {
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [view, setView] = useState("all");
+  const [communicationLogs, setCommunicationLogs] = useState<CommunicationLog[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
 
   // Sync filters from URL on mount
   useEffect(() => {
@@ -134,6 +156,18 @@ export default function LeadsPage() {
     };
     fetchAgents();
   }, [supabase]);
+
+  // Fetch communication logs when dialog opens
+  useEffect(() => {
+    if (viewDialogOpen && selectedLead) {
+      fetchCommunicationLogs(selectedLead);
+    } else if (!viewDialogOpen) {
+      // Clear logs when dialog closes
+      setCommunicationLogs([]);
+      setLogsLoading(false);
+      setLogsError(null);
+    }
+  }, [viewDialogOpen, selectedLead]);
 
 
   const getStatusColor = (status: string) => {
@@ -257,28 +291,260 @@ export default function LeadsPage() {
 
   const ViewLeadDialog = () => {
     if (!selectedLead) return null;
+    
     const parsed = parseNotes(selectedLead.notes);
+
     return (
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
           <DialogHeader>
-            <DialogTitle>Lead Details</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Lead Details: {selectedLead.name}
+              {selectedLead.is_hot && <span className="text-red-500">🔥</span>}
+            </DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <div><span className="font-semibold">Name:</span> {selectedLead.name}</div>
-            <div><span className="font-semibold">Contact:</span> {selectedLead.email || selectedLead.phone || '—'}</div>
-            <div><span className="font-semibold">Status:</span> {selectedLead.status}</div>
-            <div><span className="font-semibold">Assigned Agent:</span> {selectedLead.agent_name || '—'}</div>
-            <div><span className="font-semibold">Is Hot:</span> {selectedLead.is_hot ? 'Yes' : 'No'}</div>
-            <div><span className="font-semibold">Created At:</span> {selectedLead.created_at ? new Date(selectedLead.created_at).toLocaleString() : '—'}</div>
-            <div><span className="font-semibold">Updated At:</span> {selectedLead.updated_at ? new Date(selectedLead.updated_at).toLocaleString() : '—'}</div>
-            {parsed['type'] && <div><span className="font-semibold">Log Type:</span> {parsed['type']}</div>}
-            {parsed['subject'] && <div><span className="font-semibold">Subject:</span> {parsed['subject']}</div>}
-            {parsed['message'] && <div><span className="font-semibold">Message:</span> {parsed['message']}</div>}
-            {parsed['property'] && <div><span className="font-semibold">Property:</span> {parsed['property']}</div>}
-            {parsed['from'] && <div><span className="font-semibold">From:</span> {parsed['from']}</div>}
-            {parsed['to'] && <div><span className="font-semibold">To:</span> {parsed['to']}</div>}
-          </div>
+          
+          <Tabs defaultValue="overview" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="communications">Communications</TabsTrigger>
+              <TabsTrigger value="agent-activity">Agent Activity</TabsTrigger>
+              <TabsTrigger value="property">Property Info</TabsTrigger>
+            </TabsList>
+
+            <ScrollArea className="h-[60vh] mt-4">
+              <TabsContent value="overview" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 text-gray-500" />
+                      <span className="font-semibold">Name:</span>
+                      <span>{selectedLead.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span className="font-semibold">Email:</span>
+                      <span>{selectedLead.email || '—'}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-gray-500" />
+                      <span className="font-semibold">Phone:</span>
+                      <span>{selectedLead.phone || '—'}</span>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="font-semibold">Status:</span>
+                      <Badge className={`ml-2 ${getStatusColor(selectedLead.status)}`}>
+                        {selectedLead.status}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Assigned Agent:</span>
+                      <span className="ml-2">{selectedLead.agent_name || '—'}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold">Is Hot Lead:</span>
+                      <Badge variant={selectedLead.is_hot ? "destructive" : "secondary"} className="ml-2">
+                        {selectedLead.is_hot ? 'Yes' : 'No'}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <span className="font-semibold">Created:</span>
+                    <span>{selectedLead.created_at ? new Date(selectedLead.created_at).toLocaleString() : '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-gray-500" />
+                    <span className="font-semibold">Last Updated:</span>
+                    <span>{selectedLead.updated_at ? new Date(selectedLead.updated_at).toLocaleString() : '—'}</span>
+                  </div>
+                </div>
+
+                {Object.keys(parsed).length > 0 && (
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      <h4 className="font-semibold">Lead Source Information:</h4>
+                      {parsed['type'] && <div><span className="font-medium">Log Type:</span> {parsed['type']}</div>}
+                      {parsed['subject'] && <div><span className="font-medium">Subject:</span> {parsed['subject']}</div>}
+                      {parsed['message'] && <div><span className="font-medium">Message:</span> {parsed['message']}</div>}
+                      {parsed['property'] && <div><span className="font-medium">Property:</span> {parsed['property']}</div>}
+                      {parsed['from'] && <div><span className="font-medium">From:</span> {parsed['from']}</div>}
+                      {parsed['to'] && <div><span className="font-medium">To:</span> {parsed['to']}</div>}
+                    </div>
+                  </>
+                )}
+              </TabsContent>
+
+              <TabsContent value="communications" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">Communication History</h4>
+                  <Badge variant="outline">{communicationLogs.length} communications</Badge>
+                </div>
+                
+                {logsLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                ) : logsError ? (
+                  <div className="text-red-500 text-center py-8">{logsError}</div>
+                ) : communicationLogs.length === 0 ? (
+                  <div className="text-gray-500 text-center py-8">No communication history found</div>
+                ) : (
+                  <div className="space-y-3">
+                    {communicationLogs.map((log) => (
+                      <div key={log.id} className="border rounded-lg p-4 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {getCommunicationIcon(log.communication_type)}
+                            <span className="font-medium capitalize">{log.communication_type}</span>
+                            {getDirectionBadge(log.direction)}
+                            {getStatusBadge(log.status)}
+                          </div>
+                          <span className="text-sm text-gray-500">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div><span className="font-medium">From:</span> {log.from_address}</div>
+                          <div><span className="font-medium">To:</span> {log.to_address}</div>
+                        </div>
+                        
+                        {log.subject && (
+                          <div><span className="font-medium">Subject:</span> {log.subject}</div>
+                        )}
+                        
+                        {log.body && (
+                          <div>
+                            <span className="font-medium">Content:</span>
+                            <div className="mt-1 text-sm bg-gray-50 rounded p-2 max-h-20 overflow-y-auto">
+                              {log.body.length > 200 ? `${log.body.substring(0, 200)}...` : log.body}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {log.property?.property_address && (
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-gray-500" />
+                            <span className="font-medium">Property:</span> {log.property.property_address}
+                          </div>
+                        )}
+                        
+                        {log.gemini_analysis && (
+                          <div>
+                            <span className="font-medium">AI Analysis:</span>
+                            <div className="mt-1 text-sm bg-blue-50 rounded p-2">
+                              {log.gemini_analysis}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="agent-activity" className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold">Agent Activity</h4>
+                  <Badge variant="outline">
+                    {communicationLogs.filter(log => log.direction === 'outbound').length} outbound
+                  </Badge>
+                </div>
+                
+                {logsLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {communicationLogs
+                      .filter(log => log.direction === 'outbound')
+                      .map((log) => (
+                        <div key={log.id} className="border rounded-lg p-4 space-y-2 bg-blue-50">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              {getCommunicationIcon(log.communication_type)}
+                              <span className="font-medium">Agent {log.communication_type}</span>
+                              {getStatusBadge(log.status)}
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {new Date(log.timestamp).toLocaleString()}
+                            </span>
+                          </div>
+                          
+                          {log.subject && (
+                            <div><span className="font-medium">Subject:</span> {log.subject}</div>
+                          )}
+                          
+                          {log.body && (
+                            <div>
+                              <span className="font-medium">Content:</span>
+                              <div className="mt-1 text-sm bg-white rounded p-2 max-h-20 overflow-y-auto">
+                                {log.body.length > 200 ? `${log.body.substring(0, 200)}...` : log.body}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    
+                    {communicationLogs.filter(log => log.direction === 'outbound').length === 0 && (
+                      <div className="text-gray-500 text-center py-8">No agent activity found</div>
+                    )}
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="property" className="space-y-4">
+                <h4 className="font-semibold">Property Information</h4>
+                
+                {parsed['property'] ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500" />
+                      <span className="font-medium">Property Address:</span>
+                      <span>{parsed['property']}</span>
+                    </div>
+                    
+                    {/* Show communications related to this property */}
+                    {communicationLogs.filter(log => log.property?.property_address).length > 0 && (
+                      <>
+                        <Separator />
+                        <div>
+                          <span className="font-medium">Property Communications:</span>
+                          <div className="mt-2 space-y-2">
+                            {communicationLogs
+                              .filter(log => log.property?.property_address)
+                              .map((log) => (
+                                <div key={log.id} className="text-sm bg-gray-50 rounded p-2">
+                                  <div className="flex items-center gap-2">
+                                    {getCommunicationIcon(log.communication_type)}
+                                    <span>{new Date(log.timestamp).toLocaleDateString()}</span>
+                                    <span>-</span>
+                                    <span>{log.communication_type}</span>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-gray-500 text-center py-8">No property information available</div>
+                )}
+              </TabsContent>
+            </ScrollArea>
+          </Tabs>
         </DialogContent>
       </Dialog>
     );
@@ -307,6 +573,120 @@ export default function LeadsPage() {
         )}
       </div>
   )
+
+  const getCommunicationIcon = (type: string) => {
+    switch (type) {
+      case 'email': return <Mail className="h-4 w-4" />;
+      case 'sms': return <MessageSquare className="h-4 w-4" />;
+      case 'call': return <Phone className="h-4 w-4" />;
+      default: return <MessageSquare className="h-4 w-4" />;
+    }
+  };
+
+  const getDirectionBadge = (direction: string) => {
+    return (
+      <Badge variant={direction === 'inbound' ? 'default' : 'secondary'}>
+        {direction === 'inbound' ? 'Received' : 'Sent'}
+      </Badge>
+    );
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusColors = {
+      'sent': 'bg-green-100 text-green-800',
+      'delivered': 'bg-blue-100 text-blue-800',
+      'failed': 'bg-red-100 text-red-800',
+      'initiated': 'bg-yellow-100 text-yellow-800',
+      'completed': 'bg-green-100 text-green-800'
+    };
+    
+    return (
+      <Badge className={statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'}>
+        {status}
+      </Badge>
+    );
+  };
+
+  // Fetch communication logs for a specific lead
+  const fetchCommunicationLogs = async (lead: Lead) => {
+    setLogsLoading(true);
+    setLogsError(null);
+    
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Mock communication data
+    const mockLogs: CommunicationLog[] = [
+      {
+        id: '1',
+        communication_type: 'email',
+        from_address: 'agent@senw.io',
+        to_address: lead.email || 'lead@example.com',
+        subject: 'Property Inquiry - 123 Main St',
+        body: 'Hi there! Thank you for your interest in the property at 123 Main St. I\'d be happy to schedule a viewing for you. The property features 3 bedrooms, 2 bathrooms, and a beautiful backyard. Would you be available this weekend?',
+        direction: 'outbound',
+        status: 'sent',
+        timestamp: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        gemini_analysis: 'Mock Analysis: Professional tone, clear property details, proactive scheduling request. Sentiment: Positive (0.85)',
+        property: { property_address: '123 Main St, Chicago, IL' }
+      },
+      {
+        id: '2',
+        communication_type: 'sms',
+        from_address: lead.phone || '+1234567890',
+        to_address: '+1987654321',
+        subject: undefined,
+        body: 'Hi! I saw your listing for 123 Main St. Is it still available? I\'m very interested and would like to see it ASAP.',
+        direction: 'inbound',
+        status: 'delivered',
+        timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+        gemini_analysis: 'Mock Analysis: High urgency, strong interest indicated, immediate action requested. Sentiment: Very Positive (0.92) - HOT LEAD',
+        property: { property_address: '123 Main St, Chicago, IL' }
+      },
+      {
+        id: '3',
+        communication_type: 'call',
+        from_address: '+1987654321',
+        to_address: lead.phone || '+1234567890',
+        subject: undefined,
+        body: 'Outbound call to discuss property details and schedule viewing',
+        direction: 'outbound',
+        status: 'completed',
+        timestamp: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+        gemini_analysis: 'Mock Analysis: Call duration: 8 minutes. Lead showed strong interest in financing options. Sentiment: Positive (0.78)',
+        property: { property_address: '123 Main St, Chicago, IL' }
+      },
+      {
+        id: '4',
+        communication_type: 'email',
+        from_address: lead.email || 'lead@example.com',
+        to_address: 'agent@senw.io',
+        subject: 'Re: Property Inquiry - 123 Main St',
+        body: 'Thank you for the quick response! Yes, I would love to see the property this weekend. Saturday afternoon would work best for me. Also, could you send me more details about the financing options you mentioned?',
+        direction: 'inbound',
+        status: 'sent',
+        timestamp: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+        gemini_analysis: 'Mock Analysis: Engaged response, specific scheduling request, financing interest. Sentiment: Positive (0.88)',
+        property: { property_address: '123 Main St, Chicago, IL' }
+      },
+      {
+        id: '5',
+        communication_type: 'sms',
+        from_address: '+1987654321',
+        to_address: lead.phone || '+1234567890',
+        subject: undefined,
+        body: 'Perfect! I\'ve scheduled your viewing for Saturday at 2 PM. I\'ll also prepare the financing information for you. Looking forward to meeting you!',
+        direction: 'outbound',
+        status: 'delivered',
+        timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+        gemini_analysis: 'Mock Analysis: Confirmation message, proactive preparation, positive tone. Sentiment: Professional (0.82)',
+        property: { property_address: '123 Main St, Chicago, IL' }
+      }
+    ];
+    
+    setCommunicationLogs(mockLogs);
+    setLogsLoading(false);
+  };
 
   return (
     <div className="space-y-6">

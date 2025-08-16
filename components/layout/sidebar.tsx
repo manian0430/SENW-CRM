@@ -30,6 +30,7 @@ const navItems = [
   { name: "Analytics", href: "/analytics", icon: BarChart2 },
   { name: "Documents", href: "/documents", icon: FileIcon, disabled: true },
   { name: "Team", href: "/team", icon: UserPlus },
+  { name: "Agent Submission", href: "/team/agent-submission", icon: UserPlus },
   { name: "Automation", href: "/automation", icon: Clock },
   { name: "Collaboration", href: "/collaboration", icon: MessageSquare },
   { name: "Social", href: "/social", icon: Share2 },
